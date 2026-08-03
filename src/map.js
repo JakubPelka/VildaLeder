@@ -559,7 +559,10 @@ function showMapPopup(lngLat, content) {
 }
 
 export function fitAllTrails(trails) {
-  fitGeometries(trails.map((trail) => trail.geometry), { padding: 30, maxZoom: 12 });
+  // Category and area changes should restore geographic context, not zoom to
+  // the scale of a single small feature. Explicit feature selection may still
+  // use the closer zoom configured in fitTrail().
+  fitGeometries(trails.map((trail) => trail.geometry), { padding: 30, maxZoom: 10 });
 }
 
 export function fitTrail(trail) {
