@@ -69,4 +69,5 @@ jobs:
           DATABASE_URL: postgresql://vildaleder:ci-only-password@127.0.0.1:5432/vildaleder
         run: |
           python scripts/import_postgis.py
+          python scripts/sync_features.py --from-file data/features.json
           python scripts/verify_postgis.py

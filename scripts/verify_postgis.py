@@ -34,6 +34,11 @@ def verify(database_url: str) -> dict[str, int]:
                 connection,
                 "SELECT count(*) FROM vildaleder.spatial_feature WHERE is_active",
             ),
+            "reserves": scalar(
+                connection,
+                """SELECT count(*) FROM vildaleder.spatial_feature
+                   WHERE is_active AND feature_kind = 'reserve'""",
+            ),
             "taxa": scalar(connection, "SELECT count(*) FROM vildaleder.taxon"),
             "taxonNames": scalar(connection, "SELECT count(*) FROM vildaleder.taxon_name"),
             "uniqueObservations": scalar(connection, "SELECT count(*) FROM vildaleder.observation"),
@@ -63,7 +68,8 @@ def verify(database_url: str) -> dict[str, int]:
             ),
         }
     expectations = (
-        (stats["features"] >= 64, "expected all Halmstad features"),
+        (stats["features"] >= 370, "expected the complete Halland feature catalog"),
+        (stats["reserves"] >= 200, "expected current Halland nature reserves"),
         (stats["taxa"] >= 8_000, "expected full taxonomy index"),
         (stats["taxonNames"] >= 10_000, "expected scientific and vernacular names"),
         (stats["uniqueObservations"] > 100_000, "expected deduplicated observations"),

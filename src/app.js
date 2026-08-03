@@ -38,6 +38,7 @@ const state = {
   observationTablePage: 0,
   language: initialLanguage(),
   mode: "trail",
+  featureKind: "",
   county: "",
   municipality: "",
   period: "year",
@@ -51,7 +52,9 @@ const state = {
 
 const elements = {
   status: document.querySelector("#status"),
+  resetFilters: document.querySelector("#reset-filters"),
   language: document.querySelector("#language"),
+  featureKind: document.querySelector("#feature-kind"),
   county: document.querySelector("#county"),
   municipality: document.querySelector("#municipality"),
   period: document.querySelector("#period"),
@@ -123,6 +126,7 @@ function currentRange() {
 
 function areaTrails(query = "") {
   return filteredTrails(state.catalog.trails, {
+    featureKind: state.featureKind,
     county: state.county,
     municipality: state.municipality,
     query,
@@ -147,13 +151,26 @@ function populateAreaFilters() {
   const municipalities = [
     ...new Set(
       state.catalog.trails
-        .filter((trail) => !state.county || trail.county === state.county)
-        .map((trail) => trail.municipality),
+        .filter(
+          (trail) =>
+            (!state.featureKind || trail.featureKind === state.featureKind) &&
+            (!state.county || trail.county === state.county),
+        )
+        .flatMap((trail) => trail.municipalities || [trail.municipality].filter(Boolean)),
     ),
   ].sort();
+  const availableMunicipalities = state.catalog.featureMeta?.municipalities;
+  const filteredMunicipalities = availableMunicipalities
+    ? municipalities.filter((municipality) => availableMunicipalities.includes(municipality))
+    : municipalities;
   fillSelect(elements.county, counties, t("allCounties"), state.county);
-  fillSelect(elements.municipality, municipalities, t("allMunicipalities"), state.municipality);
-  if (state.municipality && !municipalities.includes(state.municipality)) {
+  fillSelect(
+    elements.municipality,
+    filteredMunicipalities,
+    t("allMunicipalities"),
+    state.municipality,
+  );
+  if (state.municipality && !filteredMunicipalities.includes(state.municipality)) {
     state.municipality = "";
     elements.municipality.value = "";
   }
@@ -183,6 +200,13 @@ function populateSpeciesSuggestions() {
 
 function renderAll() {
   populateAreaFilters();
+  if (
+    state.selectedTrailId &&
+    !areaTrails().some((feature) => feature.id === state.selectedTrailId)
+  ) {
+    state.selectedTrailId = null;
+    state.loadedSelection = null;
+  }
   elements.snapshotNote.textContent = t("snapshot", {
     start: formatDate(state.catalog.meta.windowStart),
     end: formatDate(state.catalog.meta.windowEnd),
@@ -208,16 +232,18 @@ function renderTrailResults() {
     const button = node("button", "result-card");
     button.type = "button";
     button.classList.toggle("is-selected", trail.id === state.selectedTrailId);
-    button.append(node("span", "result-title", trail.name));
-    button.append(
-      node(
-        "span",
-        "result-meta",
-        `${t("length", { value: trail.lengthKm })} · ${t("observations", {
-          count: formatNumber(stats.observations),
-        })} · ${t("species", { count: formatNumber(stats.species) })}`,
-      ),
-    );
+    const title = node("span", "result-title", trail.name);
+    title.prepend(featureKindBadge(trail));
+    button.append(title);
+    const dimension = trail.featureKind === "reserve"
+      ? t("areaHectares", { value: formatNumber(Math.round(trail.areaHa || 0)) })
+      : t("length", { value: trail.lengthKm });
+    const evidence = trail.observationCoverage
+      ? `${t("observations", { count: formatNumber(stats.observations) })} · ${t("species", {
+          count: formatNumber(stats.species),
+        })}`
+      : t("observationSyncPending");
+    button.append(node("span", "result-meta", `${dimension} · ${evidence}`));
     button.addEventListener("click", () => selectTrail(trail.id));
     elements.trailResults.append(button);
   });
@@ -332,6 +358,13 @@ async function renderTrailDetails() {
     elements.trailDetails.append(node("p", "empty-state", t("selectTrail")));
     return;
   }
+  if (!trail.observationCoverage) {
+    setObservations([]);
+    renderRedlistFilters([]);
+    renderMapObservationSummary(trail, 0);
+    renderResolvedTrailDetails(trail, []);
+    return;
+  }
 
   const range = currentRange();
   const key = selectionKey(trail, range);
@@ -375,27 +408,36 @@ function renderResolvedTrailDetails(trail, observations) {
   const displayedObservations = state.mode === "species" ? mapObservations : observations;
   const taxa = groupTaxa(displayedObservations);
   const header = node("div", "details-header");
-  header.append(node("h2", "", trail.name));
+  const heading = node("h2", "", trail.name);
+  heading.prepend(featureKindBadge(trail));
+  header.append(heading);
+  const municipalities = (trail.municipalities || [trail.municipality].filter(Boolean)).join(", ");
+  const dimension = trail.featureKind === "reserve"
+    ? t("areaHectares", { value: formatNumber(Math.round(trail.areaHa || 0)) })
+    : t("length", { value: trail.lengthKm });
   header.append(
     node(
       "p",
       "details-meta",
-      `${trail.municipality}, ${trail.county} · ${t("length", { value: trail.lengthKm })} · ${t(
-        "observations",
-        { count: formatNumber(displayedObservations.length) },
-      )} · ${t("species", { count: formatNumber(taxa.length) })}`,
+      trail.observationCoverage
+        ? `${municipalities}, ${trail.county} · ${dimension} · ${t("observations", {
+            count: formatNumber(displayedObservations.length),
+          })} · ${t("species", { count: formatNumber(taxa.length) })}`
+        : `${municipalities}, ${trail.county} · ${dimension} · ${t("observationSyncPending")}`,
     ),
   );
   const links = node("div", "details-links");
-  const osmLink = node("a", "", t("osmRoute"));
-  osmLink.href = trail.osmUrl;
+  const osmLink = node("a", "", t(trail.featureKind === "reserve" ? "reserveSource" : "osmRoute"));
+  osmLink.href = trail.sourceUrl || trail.osmUrl;
   osmLink.target = "_blank";
   osmLink.rel = "noreferrer";
   links.append(osmLink);
   header.append(links);
   elements.trailDetails.append(header);
 
-  if (!taxa.length) {
+  if (!trail.observationCoverage) {
+    elements.trailDetails.append(node("p", "data-caveat", t("observationCoverageNote")));
+  } else if (!taxa.length) {
     elements.trailDetails.append(node("p", "empty-state", t("noObservations")));
   } else {
     const list = node("div", "taxon-list");
@@ -609,6 +651,12 @@ function renderMapObservationSummary(trail, count) {
     elements.mapObservationSummary.textContent = t("mapSelectTrail");
     return;
   }
+  if (!trail.observationCoverage) {
+    elements.mapObservationSummary.textContent = t("mapObservationSyncPending", {
+      trail: trail.name,
+    });
+    return;
+  }
   if (state.mode === "species" && state.selectedSpecies) {
     elements.mapObservationSummary.textContent = t("mapSpeciesPoints", {
       count: formatNumber(count),
@@ -621,6 +669,16 @@ function renderMapObservationSummary(trail, count) {
     count: formatNumber(count),
     trail: trail.name,
   });
+}
+
+function featureKindBadge(feature) {
+  const badge = node(
+    "span",
+    "feature-kind-badge",
+    t(feature.featureKind === "reserve" ? "natureReserve" : "trail"),
+  );
+  badge.dataset.kind = feature.featureKind || "trail";
+  return badge;
 }
 
 function observationPopup(observation) {
@@ -672,6 +730,32 @@ function selectTrail(trailId) {
   }
 }
 
+function resetFilters() {
+  if (!state.catalog) return;
+  state.featureKind = "";
+  state.county = "";
+  state.municipality = "";
+  state.period = "year";
+  state.customStart = state.catalog.meta.windowStart;
+  state.customEnd = state.catalog.meta.windowEnd;
+  state.trailQuery = "";
+  state.speciesQuery = "";
+  state.selectedSpecies = null;
+  state.selectedTrailId = null;
+  state.loadedSelection = null;
+  state.disabledRedlistCategories.clear();
+  elements.featureKind.value = "";
+  elements.period.value = "year";
+  elements.customDates.hidden = true;
+  elements.dateFrom.value = state.customStart;
+  elements.dateTo.value = state.customEnd;
+  elements.trailSearch.value = "";
+  elements.speciesSearch.value = "";
+  setMode("trail");
+  renderAll();
+  fitAllTrails(areaTrails());
+}
+
 function setMode(mode) {
   state.mode = mode;
   elements.modeTabs.forEach((tab) => {
@@ -690,7 +774,13 @@ function bindEvents() {
     localStorage.setItem("vildaleder-language", state.language);
     applyLanguage();
   });
+  elements.resetFilters.addEventListener("click", resetFilters);
   elements.modeTabs.forEach((tab) => tab.addEventListener("click", () => setMode(tab.dataset.mode)));
+  elements.featureKind.addEventListener("change", () => {
+    state.featureKind = elements.featureKind.value;
+    renderAll();
+    fitAllTrails(areaTrails());
+  });
   elements.county.addEventListener("change", () => {
     state.county = elements.county.value;
     state.municipality = "";
@@ -730,12 +820,41 @@ async function loadJson(path, label) {
   return response.json();
 }
 
+function mergedCatalog(observationCatalog, featureCatalog) {
+  const observationsByFeature = new Map(
+    observationCatalog.trails.map((trail) => [trail.id, trail]),
+  );
+  const features = featureCatalog.features.map((feature) => {
+    const observationFeature = observationsByFeature.get(feature.id) || {};
+    return {
+      ...feature,
+      ...observationFeature,
+      featureKind: feature.featureKind,
+      municipalities: feature.municipalities,
+      municipality: feature.municipality,
+      geometry: feature.geometry,
+      corridor: feature.analysisGeometry,
+      sourceUrl: feature.sourceUrl,
+      areaHa: feature.areaHa,
+      observationFiles: observationFeature.observationFiles || [],
+      observationTotal: observationFeature.observationTotal || 0,
+      observationCoverage: Boolean(observationFeature.id),
+    };
+  });
+  return {
+    ...observationCatalog,
+    trails: features,
+    featureMeta: featureCatalog.meta,
+  };
+}
+
 async function start() {
   applyLanguage();
   bindEvents();
   try {
-    const [catalog, searchIndex] = await Promise.all([
+    const [observationCatalog, featureCatalog, searchIndex] = await Promise.all([
       loadJson("data/catalog.json", "Catalog"),
+      loadJson("data/features.json", "Feature catalog"),
       loadJson("data/search-index.json", "Search index"),
       initMap({
         onTrailClick: selectTrail,
@@ -744,7 +863,7 @@ async function start() {
         onViewportChange: handleViewportChange,
       }),
     ]);
-    state.catalog = catalog;
+    state.catalog = mergedCatalog(observationCatalog, featureCatalog);
     state.searchIndex = searchIndex;
     state.taxonById = new Map(
       (searchIndex.taxa || []).map((taxon) => [String(taxon.taxonId), taxon]),

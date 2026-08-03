@@ -69,8 +69,10 @@ export function observationFilesForRange(trail, range) {
 export function filteredTrails(trails, filters) {
   const query = normalize(filters.query);
   return trails.filter((trail) => {
+    if (filters.featureKind && trail.featureKind !== filters.featureKind) return false;
     if (filters.county && trail.county !== filters.county) return false;
-    if (filters.municipality && trail.municipality !== filters.municipality) return false;
+    const municipalities = trail.municipalities || [trail.municipality].filter(Boolean);
+    if (filters.municipality && !municipalities.includes(filters.municipality)) return false;
     return !query || normalize(trail.name).includes(query);
   });
 }

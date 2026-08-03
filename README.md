@@ -9,7 +9,8 @@ iOS and Android application, accounts, subscriptions, and paid features are
 possible later, after the public web MVP has demonstrated that the underlying
 data and ranking are useful.
 
-> Project status: functional Halmstad pilot. The web MVP runs locally and is
+> Project status: functional Halland map/filter pilot with Halmstad observation
+> coverage. The web MVP runs locally and is
 > prepared for deployment at
 > [jakubpelka.github.io/VildaLeder](https://jakubpelka.github.io/VildaLeder/).
 
@@ -20,16 +21,17 @@ VildaLeder begins with a walk a person can actually take.
 
 The product has two primary entry points:
 
-### 1. Trail first
+### 1. Trail or nature reserve first
 
 “I want to walk this trail. What has been observed nearby recently?”
 
-1. Browse or search marked trails on a map.
+1. Browse or search marked trails and nature reserves on a map.
 2. Filter the map by Swedish county (`län`) and municipality (`kommun`).
 3. Select a trail on the map or from the results list.
 4. Zoom to the complete route.
 5. Query public nature observations inside an approximately 200-metre corridor
-   around the trail.
+   around the trail, or inside the complete nature-reserve polygon plus a
+   200-metre outward buffer.
 6. Show recently observed species, prioritised by Swedish Red List category and
    accompanied by observation date, count, source, and data-quality context.
 7. Change the time range: day, month, quarter, year, or custom dates.
@@ -55,8 +57,9 @@ will be present. The interface must make that distinction clear.
 - Geography: Sweden.
 - Trails: identifiable walking and hiking route relations from OpenStreetMap,
   initially `type=route` with `route=hiking` or `route=foot`.
-- Observation corridor: 200 metres on each side of the trail by default. The
-  exact spatial method and whether the width becomes configurable will be
+- Observation area: 200 metres on each side of a trail; for a nature reserve,
+  the complete official protected-area polygon plus a 200-metre outward buffer.
+  The exact spatial method and whether the width becomes configurable will be
   validated during discovery.
 - Nature observations: public, georeferenced records from the SLU Species
   Observation System (including Artportalen) and/or GBIF.
@@ -66,12 +69,17 @@ will be present. The interface must make that distinction clear.
 - Access: public and anonymous; no account required.
 - Delivery: responsive web application on GitHub Pages.
 
-The current pilot discovers all 64 named OSM `route=hiking|foot` relations in
-Halmstads kommun, Hallands län. It contains a generated ten-year snapshot of
-public Artportalen observations inside real 200-metre trail corridors. Area
-filters are optional: the unfiltered view searches every route currently in the
-dataset. Sweden-wide species discovery (including sparse species such as
-harfågel or järv) requires the Phase 4 data platform described in the roadmap.
+The current map catalog covers all six Halland municipalities: 175 named OSM
+`route=hiking|foot` relations and 213 current Halland nature reserves
+from Naturvårdsregistret (388 selectable places in total). It deduplicates
+cross-municipality routes and retains
+every municipality membership for filtering. The checked-in observation
+snapshot still covers the 64 Halmstad trails while the Halland-wide PostGIS
+ingest is brought online; the UI labels other places as awaiting observation
+synchronisation rather than reporting a misleading zero. Area and place-type
+filters are optional. Sweden-wide species discovery (including sparse species
+such as harfågel or järv) requires the Phase 4 data platform described in the
+roadmap.
 
 ## Try the pilot
 
@@ -83,11 +91,12 @@ python3 -m http.server 8000
 ```
 
 Then open <http://localhost:8000>. The interface supports English, Swedish, and
-Polish; trail-first and species-first search; optional county/municipality
-filters; map selection; interactive Red List classes; and day, 30-day, 90-day,
+Polish; trail/reserve-first and species-first search; optional place-type and
+county/municipality filters; map selection; interactive Red List classes; and day, 30-day, 90-day,
 365-day, or custom date ranges within the ten-year snapshot. Counts are computed
 from daily aggregates and therefore change with every selected date range.
-Overlapping observation coordinates are clustered with their record count, and
+The custom search range is capped at the most recent ten years. Overlapping
+observation coordinates are clustered with their record count, and
 the paginated table below the map lists every currently visible observation;
 selecting a row zooms to the record and opens its evidence popup.
 
@@ -117,6 +126,25 @@ emits a geometry catalog, a daily aggregate search index, and compact route/time
 partitions. Use `--incremental` to replace only the current-month partitions and
 rebuild the aggregates; the scheduled workflow runs this mode every 24 hours.
 
+Refresh the Halland spatial catalog independently (no SOS credential required):
+
+```bash
+.venv/bin/python scripts/sync_features.py
+```
+
+This queries OSM per municipality and the authoritative Naturvårdsregistret,
+then writes `data/features.json`. Set `DATABASE_URL` or pass `--database-url` to
+upsert the same trail and reserve geometries into PostGIS. On the always-on
+server, reuse the checked catalog without making upstream requests:
+
+```bash
+.venv/bin/python scripts/sync_features.py --from-file data/features.json \
+  --database-url "$DATABASE_URL"
+```
+
+The daily workflow refreshes both the observation snapshot and this spatial
+catalog.
+
 Run the test suite with:
 
 ```bash
@@ -127,7 +155,7 @@ Run the test suite with:
 
 The accepted Sweden-wide target is PostgreSQL/PostGIS, not a browser-sized copy
 per route. A canonical observation is stored once and linked spatially to any
-number of trails and, later, nature reserves. Daily `taxon × feature × date`
+number of trails and nature reserves. Daily `taxon × feature × date`
 aggregates serve responsive period counts and rankings. Provider records remain
 separate so SOS/Artportalen and GBIF provenance can be retained and cross-source
 duplicates can later resolve to one canonical observation.
@@ -151,13 +179,15 @@ and migration details.
 
 ## Product principles
 
-1. **A route is the unit of discovery.** Points and species become useful when
-   they help someone choose or understand a walk.
+1. **A walkable place is the unit of discovery.** Points and species become
+   useful when they help someone choose or understand a trail or nature reserve.
 2. **Show the evidence.** Rankings expose counts, dates, sources, and coverage
    instead of presenting an unexplained score.
 3. **Do not expose sensitive wildlife.** VildaLeder uses only locations made
    public by the source and never attempts to reverse obfuscation or reveal
-   protected nests, dens, or sites.
+   protected nests, dens, or sites. Some source databases completely withhold
+   sensitive records or publish only generalised locations, so missing public
+   points must never be presented as proof that a species is absent.
 4. **Conservation status is not a popularity score.** Red List category reflects
    extinction risk, not legal protection, beauty, or guaranteed rarity at a
    specific location.
@@ -177,6 +207,7 @@ flowchart LR
     OSM[OpenStreetMap routes] --> DB[(PostgreSQL / PostGIS)]
     Admin[Counties and municipalities] --> DB
     Reserves[Nature reserves] --> DB
+    Skandobs[Skandobs candidate] -. licence/API agreement .-> DB
     SOS[SLU SOS / Artportalen] --> DB
     GBIF[GBIF / Darwin Core] --> DB
     Taxa[Dyntaxa / Red List] --> DB
@@ -306,6 +337,8 @@ The canonical identity is a source taxon identifier, never the displayed name.
 
 - Only public observations are in scope for anonymous users.
 - Obfuscated or withheld source coordinates stay obfuscated or withheld.
+- Some sensitive taxa and observations are unavailable in public source output;
+  absence from VildaLeder is therefore not evidence of ecological absence.
 - Observation locations must not be interpreted as trail safety guidance or
   permission to enter private/restricted land.
 - Trail presence in OSM does not guarantee that it is open, maintained, safe, or
@@ -335,6 +368,11 @@ path from data discovery to web MVP and native mobile applications.
 - [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
 - [SLU overview of open data and APIs](https://www.slu.se/artdatabanken/rapportering-och-fynd/oppna-data-och-apier/om-slu-artdatabankens-apier)
 - [SLU Species Observation System API capabilities](https://www.slu.se/artdatabanken/rapportering-och-fynd/oppna-data-och-apier/om-slu-artdatabankens-apier/api-for-artobservationer-fran-flera-dataset/)
+- [Naturvårdsregistret REST API](https://geodata.naturvardsverket.se/naturvardsregistret/rest/v3/)
+- [Skandobs](https://www.skandobs.se/) — candidate source for public
+  large-predator reports; production reuse awaits a documented API and
+  redistribution agreement with the service owner. See the
+  [source evaluation](docs/discovery/skandobs-evaluation.md).
 - [Species Observation System technical repository](https://github.com/biodiversitydata-se/SOS)
 - [Dyntaxa taxonomy API overview](https://www.slu.se/artdatabanken/rapportering-och-fynd/oppna-data-och-apier/om-slu-artdatabankens-apier/apier-for-taxonomisk-information/)
 - [Swedish Red List 2025](https://www.slu.se/artdatabanken/publikationer/rodlistor/rodlista-2025/)

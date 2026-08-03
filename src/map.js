@@ -3,6 +3,7 @@ const SOURCE_TRAILS = "trails";
 const SOURCE_OBSERVATIONS = "observations";
 const LAYER_CORRIDORS = "trail-corridors-fill";
 const LAYER_CORRIDOR_OUTLINES = "trail-corridors-outline";
+const LAYER_RESERVES = "nature-reserves-fill";
 const LAYER_TRAILS = "trails-line";
 const LAYER_OBSERVATION_CLUSTERS = "observations-clusters";
 const LAYER_OBSERVATION_CLUSTER_COUNT = "observations-cluster-count";
@@ -107,6 +108,7 @@ function addDataLayers() {
     id: LAYER_CORRIDORS,
     type: "fill",
     source: SOURCE_CORRIDORS,
+    filter: ["==", ["get", "visible"], true],
     paint: {
       "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#176b48"],
       "fill-opacity": [
@@ -123,6 +125,7 @@ function addDataLayers() {
     id: LAYER_CORRIDOR_OUTLINES,
     type: "line",
     source: SOURCE_CORRIDORS,
+    filter: ["==", ["get", "visible"], true],
     paint: {
       "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#176b48"],
       "line-width": ["case", ["==", ["get", "selected"], true], 1.8, 1],
@@ -130,9 +133,31 @@ function addDataLayers() {
     },
   });
   map.addLayer({
+    id: LAYER_RESERVES,
+    type: "fill",
+    source: SOURCE_TRAILS,
+    filter: [
+      "all",
+      ["==", ["get", "featureKind"], "reserve"],
+      ["==", ["get", "visible"], true],
+    ],
+    paint: {
+      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#2f855a"],
+      "fill-opacity": [
+        "case",
+        ["==", ["get", "visible"], false],
+        0.01,
+        ["==", ["get", "selected"], true],
+        0.32,
+        0.18,
+      ],
+    },
+  });
+  map.addLayer({
     id: LAYER_TRAILS,
     type: "line",
     source: SOURCE_TRAILS,
+    filter: ["==", ["get", "visible"], true],
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
       "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#176b48"],
@@ -224,7 +249,12 @@ function redlistColorExpression() {
 function bindMapInteractions() {
   map.on("click", async (event) => {
     const features = map.queryRenderedFeatures(event.point, {
-      layers: [LAYER_OBSERVATION_CLUSTERS, LAYER_OBSERVATIONS, LAYER_TRAILS],
+      layers: [
+        LAYER_OBSERVATION_CLUSTERS,
+        LAYER_OBSERVATIONS,
+        LAYER_TRAILS,
+        LAYER_RESERVES,
+      ],
     });
     const clusterFeature = features.find(
       (feature) => feature.layer.id === LAYER_OBSERVATION_CLUSTERS,
@@ -245,11 +275,13 @@ function bindMapInteractions() {
       if (observation) callbacks.onObservationClick?.(observation, event.lngLat);
       return;
     }
-    const trailFeature = features.find((feature) => feature.layer.id === LAYER_TRAILS);
+    const trailFeature = features.find((feature) =>
+      [LAYER_TRAILS, LAYER_RESERVES].includes(feature.layer.id),
+    );
     if (trailFeature) callbacks.onTrailClick?.(trailFeature.properties.trailId);
   });
 
-  [LAYER_OBSERVATION_CLUSTERS, LAYER_OBSERVATIONS, LAYER_TRAILS].forEach((layerId) => {
+  [LAYER_OBSERVATION_CLUSTERS, LAYER_OBSERVATIONS, LAYER_TRAILS, LAYER_RESERVES].forEach((layerId) => {
     map.on("mouseenter", layerId, () => {
       map.getCanvas().style.cursor = "pointer";
     });
@@ -267,6 +299,7 @@ export function setTrails(trails, visibleTrailIds, selectedTrailId) {
   const properties = (trail) => ({
     trailId: trail.id,
     name: trail.name,
+    featureKind: trail.featureKind || "trail",
     selected: trail.id === selectedTrailId,
     visible: visible.has(trail.id),
   });

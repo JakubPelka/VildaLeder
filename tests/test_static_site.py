@@ -64,6 +64,22 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("state.partitionCache", app)
         self.assertIn("disabledRedlistCategories", app)
 
+    def test_halland_feature_filters_reserves_and_data_caveats_are_in_the_ui(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        core = (ROOT / "src" / "core.js").read_text(encoding="utf-8")
+        map_source = (ROOT / "src" / "map.js").read_text(encoding="utf-8")
+        translations = (ROOT / "src" / "i18n.js").read_text(encoding="utf-8")
+        self.assertIn('id="feature-kind"', html)
+        self.assertIn('value="reserve"', html)
+        self.assertIn('id="reset-filters"', html)
+        self.assertIn('loadJson("data/features.json"', app)
+        self.assertIn("trail.municipalities", core)
+        self.assertIn('LAYER_RESERVES = "nature-reserves-fill"', map_source)
+        self.assertGreaterEqual(translations.count("maximumRangeNote"), 3)
+        self.assertGreaterEqual(translations.count("sensitiveSpeciesNote"), 3)
+        self.assertGreaterEqual(translations.count("resetFilters"), 3)
+
     def test_map_clusters_overlapping_points_and_observation_table_tracks_viewport(self):
         html = (ROOT / "index.html").read_text(encoding="utf-8")
         app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
