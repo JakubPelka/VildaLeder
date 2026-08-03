@@ -135,6 +135,13 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("showFeaturePopup(lngLat, featurePopup(feature))", app)
         self.assertIn("showFeatureTooltip", map_source)
         self.assertIn("feature-name-tooltip", map_source)
+        self.assertIn("function clearTrailSelection()", app)
+        self.assertIn("state.selectedTrailId === trailId", app)
+        self.assertIn("clearPlaceSelection", app)
+        self.assertIn('id="welcome-dialog"', html)
+        self.assertIn("WELCOME_COOKIE", app)
+        self.assertIn("SameSite=Lax", app)
+        self.assertIn("closeWelcomeDialog({ remember: true })", app)
 
     def test_refresh_is_owned_by_the_local_server_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
@@ -149,6 +156,7 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("scripts/sync_features.py", refresh)
         self.assertIn("scripts/sync_halland_postgis.py", refresh)
         self.assertIn("scripts/sync_skandobs.py", refresh)
+        self.assertIn("scripts/enrich_gbif_taxonomy.py", refresh)
         self.assertIn("scripts/export_postgis_snapshot.py", refresh)
         self.assertIn('git push origin "HEAD:${REFRESH_BRANCH}"', refresh)
         self.assertIn("speciesPointFeatureIds", refresh)

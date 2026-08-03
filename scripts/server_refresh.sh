@@ -111,6 +111,11 @@ else
   "${PYTHON_BIN}" scripts/sync_halland_postgis.py --days "${ROLLING_DAYS}" --workers 4 --force
 fi
 
+log "Refreshing multilingual GBIF taxonomy names"
+if ! "${PYTHON_BIN}" scripts/enrich_gbif_taxonomy.py --workers 6; then
+  log "GBIF taxonomy enrichment failed; retaining the names already stored in PostGIS"
+fi
+
 log "Refreshing experimental public Skandobs evidence"
 if "${PYTHON_BIN}" scripts/sync_skandobs.py; then
   "${PYTHON_BIN}" scripts/import_skandobs.py

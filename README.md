@@ -284,6 +284,42 @@ The exporter includes only features marked with a complete SOS window. A
 partially downloaded trail or reserve is therefore never published as if it had
 complete observation coverage.
 
+### Private Sweden-wide backfill
+
+The national bootstrap is deliberately isolated from the Halland pilot in a
+second PostgreSQL database, normally `vildaleder_sweden`. Initialise it from the
+verified Halland database, then run the resumable backfill:
+
+```bash
+SOS_SUBSCRIPTION_KEY_FILE=/absolute/path/to/specieskey.txt \
+scripts/run_sweden_backfill.sh
+```
+
+The job obtains the current municipality list from SCB, discovers named OSM
+hiking/foot routes municipality by municipality, downloads current nature
+reserve boundaries from Naturvårdsregistret, and requests SOS observations in
+bounded feature/year windows. County catalogs and `progress.json` stay under
+`~/.local/state/vildaleder-sweden`; the job does not call the static exporter,
+Git, or GitHub Pages. The Halland daily timer continues to use the original
+`vildaleder` database. Later deployment can switch the API database DSN only
+after the national database passes coverage and performance checks.
+
+GBIF is used as a taxonomy enrichment source for English and Polish vernacular
+names:
+
+```bash
+DATABASE_URL="$DATABASE_URL" \
+.venv/bin/python scripts/enrich_gbif_taxonomy.py
+```
+
+The nightly Halland refresh repeats this enrichment for newly encountered taxa.
+Results are cached outside the repository under `~/.cache/vildaleder`, and the
+static search index exports available `sv`, `en`, and `pl` names. Observation
+ingestion still treats SOS/Artportalen as the Swedish baseline: it is fresher and
+retains the direct source evidence used by the product. GBIF occurrence data is
+a later complementary source, excluding GBIF's complete Artportalen dataset to
+avoid importing the same feed twice.
+
 ## Product principles
 
 1. **A walkable place is the unit of discovery.** Points and species become
@@ -335,6 +371,12 @@ refresh, verifies a complete export, and pushes it to GitHub Pages; GitHub
 Actions no longer performs a second partial data refresh. The accepted national
 path is the implemented PostGIS schema plus an HTTPS API; static exports remain
 available during that transition.
+
+The localized first-visit welcome dialog has one optional functional cookie.
+Choosing “don't show again” stores `vildaleder_welcome_dismissed=1` for one year
+with `SameSite=Lax`; it contains no user identifier and is not used for
+analytics. Closing with `×`, Escape, the backdrop, or “start exploring” dismisses
+the dialog only for the current page.
 
 GitHub Pages is suitable for an open prototype, but it is not the intended
 hosting platform for a future commercial SaaS or subscription backend.

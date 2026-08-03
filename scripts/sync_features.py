@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synchronise Halland trails and nature reserves into GeoJSON and PostGIS.
+"""Synchronise trails and nature reserves into GeoJSON and PostGIS.
 
 Trails come from named OSM hiking/foot route relations, queried municipality by
 municipality to keep Overpass requests bounded. Nature reserves come from the
@@ -149,13 +149,13 @@ def fetch_municipality_routes(
     return municipality_name, relations
 
 
-def fetch_halland_routes() -> list[dict[str, Any]]:
+def fetch_routes(county: str, municipalities: dict[str, str]) -> list[dict[str, Any]]:
     relations: dict[int, dict[str, Any]] = {}
     memberships: dict[int, set[str]] = defaultdict(set)
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {
             executor.submit(fetch_municipality_routes, code, name): name
-            for code, name in MUNICIPALITIES.items()
+            for code, name in municipalities.items()
         }
         for future in as_completed(futures):
             expected_name = futures[future]
@@ -174,7 +174,7 @@ def fetch_halland_routes() -> list[dict[str, Any]]:
         lines = relation_lines(relation)
         geometry, analysis_geometry, length_km = trail_geometry(lines)
         tags = relation.get("tags", {})
-        municipalities = sorted(memberships[relation_id])
+        member_municipalities = sorted(memberships[relation_id])
         features.append(
             {
                 "id": f"osm-{relation_id}",
@@ -182,9 +182,9 @@ def fetch_halland_routes() -> list[dict[str, Any]]:
                 "source": "osm",
                 "sourceFeatureId": str(relation_id),
                 "name": tags.get("name") or f"OSM route {relation_id}",
-                "county": COUNTY,
-                "municipalities": municipalities,
-                "municipality": municipalities[0] if municipalities else None,
+                "county": county,
+                "municipalities": member_municipalities,
+                "municipality": member_municipalities[0] if member_municipalities else None,
                 "lengthKm": round(length_km, 1),
                 "network": tags.get("network"),
                 "operator": tags.get("operator"),
@@ -194,6 +194,10 @@ def fetch_halland_routes() -> list[dict[str, Any]]:
             }
         )
     return sorted(features, key=lambda item: (item["name"].casefold(), item["id"]))
+
+
+def fetch_halland_routes() -> list[dict[str, Any]]:
+    return fetch_routes(COUNTY, MUNICIPALITIES)
 
 
 def request_text(session: requests.Session, url: str, attempts: int = 6) -> str:
@@ -236,7 +240,7 @@ def polygonal(geometry: Any) -> Polygon | MultiPolygon:
     return MultiPolygon(polygons)
 
 
-def reserve_feature(item: dict[str, Any]) -> dict[str, Any]:
+def reserve_feature(item: dict[str, Any], county: str = COUNTY) -> dict[str, Any]:
     reserve_id = str(item["id"])
     status = str(item.get("beslutsstatus") or "Gällande")
     geometry_url = f"{NVR_BASE_URL}/omrade/{quote(reserve_id)}/{quote(status)}/wkt"
@@ -255,7 +259,7 @@ def reserve_feature(item: dict[str, Any]) -> dict[str, Any]:
         "source": "nvr",
         "sourceFeatureId": reserve_id,
         "name": item.get("namn") or f"Naturreservat {reserve_id}",
-        "county": COUNTY,
+        "county": county,
         "municipalities": municipalities,
         "municipality": municipalities[0] if municipalities else None,
         "areaHa": item.get("areaHa"),
@@ -270,13 +274,17 @@ def reserve_feature(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def fetch_halland_reserves(limit: int | None = None) -> list[dict[str, Any]]:
+def fetch_reserves(
+    county: str,
+    nvr_county_code: str,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     rows = request_json(
         new_session(),
         "GET",
         f"{NVR_BASE_URL}/omrade",
         params={
-            "lan": "N",
+            "lan": nvr_county_code,
             "skyddstypkod": "NR",
             "beslutsstatus": "Gällande",
             "limit": 1_000,
@@ -289,7 +297,7 @@ def fetch_halland_reserves(limit: int | None = None) -> list[dict[str, Any]]:
         rows = rows[:limit]
     features = []
     with ThreadPoolExecutor(max_workers=NVR_WORKERS) as executor:
-        futures = {executor.submit(reserve_feature, item): item for item in rows}
+        futures = {executor.submit(reserve_feature, item, county): item for item in rows}
         completed = 0
         for future in as_completed(futures):
             item = futures[future]
@@ -303,6 +311,10 @@ def fetch_halland_reserves(limit: int | None = None) -> list[dict[str, Any]]:
             if completed % 25 == 0 or completed == len(rows):
                 print(f"Reserve geometries: {completed}/{len(rows)}", file=sys.stderr)
     return sorted(features, key=lambda item: (item["name"].casefold(), item["id"]))
+
+
+def fetch_halland_reserves(limit: int | None = None) -> list[dict[str, Any]]:
+    return fetch_reserves(COUNTY, "N", limit)
 
 
 def geometry_version(feature: dict[str, Any]) -> str:
@@ -340,14 +352,20 @@ def ensure_sources(connection: psycopg.Connection[Any]) -> dict[str, int]:
     )
 
 
-def upsert_postgis(database_url: str, features: list[dict[str, Any]]) -> dict[str, int]:
+def upsert_postgis(
+    database_url: str,
+    features: list[dict[str, Any]],
+    county: str = COUNTY,
+    *,
+    deactivate_missing: bool = True,
+) -> dict[str, int]:
     with psycopg.connect(database_url) as connection:
         sources = ensure_sources(connection)
-        existing_versions = {
-            (source_key, source_feature_id): version
-            for source_key, source_feature_id, version in connection.execute(
+        existing = {
+            (source_key, source_feature_id): (version, properties)
+            for source_key, source_feature_id, version, properties in connection.execute(
                 """SELECT source.source_key, feature.source_feature_id,
-                          feature.geometry_version
+                          feature.geometry_version, feature.properties
                    FROM vildaleder.spatial_feature feature
                    JOIN vildaleder.data_source source USING (source_id)
                    WHERE source.source_key IN ('osm', 'nvr')"""
@@ -358,9 +376,15 @@ def upsert_postgis(database_url: str, features: list[dict[str, Any]]) -> dict[st
         for feature in features:
             source_id = sources[feature["source"]]
             new_geometry_version = geometry_version(feature)
-            previous_geometry_version = existing_versions.get(
-                (feature["source"], str(feature["sourceFeatureId"]))
-            )
+            existing_row = existing.get((feature["source"], str(feature["sourceFeatureId"])))
+            previous_geometry_version = existing_row[0] if existing_row else None
+            previous_properties = existing_row[1] if existing_row else {}
+            counties = set(previous_properties.get("counties") or [])
+            if previous_properties.get("county"):
+                counties.add(str(previous_properties["county"]))
+            counties.add(str(feature["county"]))
+            municipalities = set(previous_properties.get("municipalities") or [])
+            municipalities.update(feature.get("municipalities") or [])
             properties = {
                 key: feature.get(key)
                 for key in (
@@ -375,6 +399,9 @@ def upsert_postgis(database_url: str, features: list[dict[str, Any]]) -> dict[st
                 )
                 if feature.get(key) is not None
             }
+            properties["county"] = previous_properties.get("county") or feature["county"]
+            properties["counties"] = sorted(counties)
+            properties["municipalities"] = sorted(municipalities)
             feature_id = connection.execute(
                 """INSERT INTO vildaleder.spatial_feature(
                        feature_kind, source_id, source_feature_id, canonical_name,
@@ -435,21 +462,23 @@ def upsert_postgis(database_url: str, features: list[dict[str, Any]]) -> dict[st
                     for feature_id in invalidated_features
                 ),
             )
-        connection.execute(
-            """UPDATE vildaleder.spatial_feature
-               SET is_active = false, updated_at = now()
-               WHERE properties->>'county' = %s
-                 AND feature_id <> ALL(%s::bigint[])""",
-            (COUNTY, feature_ids),
-        )
+        if deactivate_missing:
+            connection.execute(
+                """UPDATE vildaleder.spatial_feature
+                   SET is_active = false, updated_at = now()
+                   WHERE (properties->>'county' = %s OR properties->'counties' ? %s)
+                     AND feature_id <> ALL(%s::bigint[])""",
+                (county, county, feature_ids),
+            )
         connection.commit()
         counts = dict(
             connection.execute(
                 """SELECT feature_kind::text, count(*)
                    FROM vildaleder.spatial_feature
-                   WHERE is_active AND properties->>'county' = %s
+                   WHERE is_active
+                     AND (properties->>'county' = %s OR properties->'counties' ? %s)
                    GROUP BY feature_kind""",
-                (COUNTY,),
+                (county, county),
             ).fetchall()
         )
     return {
@@ -459,14 +488,18 @@ def upsert_postgis(database_url: str, features: list[dict[str, Any]]) -> dict[st
     }
 
 
-def build_catalog(features: list[dict[str, Any]]) -> dict[str, Any]:
+def build_catalog(
+    features: list[dict[str, Any]],
+    county: str = COUNTY,
+    municipalities: dict[str, str] = MUNICIPALITIES,
+) -> dict[str, Any]:
     return {
         "schemaVersion": 1,
         "meta": {
             "generatedAt": iso_timestamp(),
             "bufferMeters": BUFFER_METERS,
-            "area": COUNTY,
-            "municipalities": sorted(MUNICIPALITIES.values()),
+            "area": county,
+            "municipalities": sorted(municipalities.values()),
             "maximumObservationYears": 10,
             "sources": {
                 "trails": "OpenStreetMap contributors",

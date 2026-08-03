@@ -292,7 +292,7 @@ def search_index(
             """SELECT external.external_id,
                       taxon.scientific_name,
                       scientific.name,
-                      swedish.name,
+                      vernacular.names,
                       taxon.organism_group,
                       taxon.redlist_category
                FROM vildaleder.taxon_external_id external
@@ -304,19 +304,27 @@ def search_index(
                    ORDER BY is_preferred DESC, taxon_name_id LIMIT 1
                ) scientific ON true
                LEFT JOIN LATERAL (
-                   SELECT name FROM vildaleder.taxon_name
-                   WHERE taxon_id = taxon.taxon_id AND language_code = 'sv'
-                   ORDER BY is_preferred DESC, taxon_name_id LIMIT 1
-               ) swedish ON true
+                   SELECT jsonb_object_agg(language_code, name) AS names
+                   FROM (
+                       SELECT DISTINCT ON (language_code) language_code, name
+                       FROM vildaleder.taxon_name
+                       WHERE taxon_id = taxon.taxon_id
+                         AND name_kind = 'vernacular'
+                         AND language_code IN ('sv', 'en', 'pl')
+                       ORDER BY language_code, is_preferred DESC, taxon_name_id
+                   ) preferred_names
+               ) vernacular ON true
                WHERE source.source_key = 'sos' AND external.external_id = ANY(%s)""",
             (list(taxon_counts),),
         ).fetchall()
-        for external_id, scientific_name, scientific_alias, swedish, group, category in metadata_rows:
+        for external_id, scientific_name, scientific_alias, names, group, category in metadata_rows:
+            vernacular_names = dict(names or {})
             taxa.append(
                 {
                     "taxonId": source_id_value(str(external_id)),
                     "scientificName": scientific_name or scientific_alias,
-                    "vernacularName": swedish,
+                    "vernacularName": vernacular_names.get("sv"),
+                    "vernacularNames": vernacular_names,
                     "organismGroup": group,
                     "redlistCategory": category,
                     "pointBucket": species_bucket(external_id),
