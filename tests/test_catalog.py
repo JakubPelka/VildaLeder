@@ -17,29 +17,38 @@ class CatalogTests(unittest.TestCase):
 
     def partition_records(self, trail):
         for manifest in trail["observationFiles"]:
+            self.assertLessEqual(manifest["start"], manifest["end"])
             path = ROOT / manifest["path"]
             partition = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(partition["schemaVersion"], 1)
             self.assertEqual(len(partition["records"]), manifest["count"])
             yield from partition["records"]
 
-    def test_catalog_contains_all_named_halmstad_routes(self):
-        trails = self.catalog["trails"]
+    def test_catalog_contains_complete_halmstad_and_kungsbacka_features(self):
+        features = self.catalog["trails"]
+        trails = [feature for feature in features if feature["featureKind"] == "trail"]
+        reserves = [feature for feature in features if feature["featureKind"] == "reserve"]
         self.assertEqual(self.catalog["schemaVersion"], 2)
-        self.assertGreaterEqual(len(trails), 64)
+        self.assertGreaterEqual(len(features), 125)
+        self.assertGreaterEqual(len(reserves), 20)
         self.assertTrue(
             {8_394_095, 8_394_110, 8_394_180, 9_158_828, 13_262_342}.issubset(
                 {trail["osmRelationId"] for trail in trails}
             )
         )
-        for trail in trails:
-            self.assertEqual(trail["municipality"], "Halmstad")
-            self.assertEqual(trail["county"], "Halland")
-            self.assertGreater(trail["lengthKm"], 0)
-            self.assertFalse(shape(trail["geometry"]).is_empty)
-            self.assertTrue(shape(trail["corridor"]).is_valid)
-            self.assertNotIn("observations", trail)
-            self.assertFalse(trail["observationLimitReached"])
+        self.assertTrue(
+            any("Kungsbacka" in feature.get("municipalities", []) for feature in features)
+        )
+        for feature in features:
+            self.assertEqual(feature["county"], "Halland")
+            if feature["featureKind"] == "trail":
+                self.assertGreater(feature["lengthKm"], 0)
+            else:
+                self.assertGreater(feature["areaHa"], 0)
+            self.assertFalse(shape(feature["geometry"]).is_empty)
+            self.assertTrue(shape(feature["corridor"]).is_valid)
+            self.assertNotIn("observations", feature)
+            self.assertFalse(feature["observationLimitReached"])
 
     def test_compact_observations_are_complete_public_and_in_window(self):
         start = self.catalog["meta"]["windowStart"]

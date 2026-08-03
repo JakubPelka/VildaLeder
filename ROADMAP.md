@@ -271,6 +271,10 @@ services.
 - Materialise daily aggregates for `taxon × trail/reserve × date` so time-range
   counts, Sweden-wide species rankings, and optional `län`/`kommun` filters do
   not require repeated upstream API calls or browser downloads of raw points.
+- Use resumable feature/year SOS windows for the Halland bootstrap and record
+  explicit per-feature coverage in PostGIS. Static pilot exports must include
+  only complete windows; interrupted or partial ingestion must never look like
+  a valid zero-observation result.
 - Fetch raw point evidence from the VildaLeder service only after a user selects
   a trail, reserve, or species result; continue to expose authoritative source
   links and data-quality context.

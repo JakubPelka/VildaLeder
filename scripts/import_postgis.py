@@ -469,6 +469,17 @@ def build_import(
                     ("snapshot_window_end", meta["windowEnd"]),
                 ),
             )
+            cursor.executemany(
+                """INSERT INTO vildaleder.metadata(key, value) VALUES (%s, %s)
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
+                (
+                    (
+                        f"sos_complete:{trail['id']}:{meta['windowStart']}:{meta['windowEnd']}",
+                        meta["generatedAt"],
+                    )
+                    for trail in catalog["trails"]
+                ),
+            )
         connection.commit()
         unique_observations = connection.execute(
             "SELECT count(*) FROM vildaleder.observation"

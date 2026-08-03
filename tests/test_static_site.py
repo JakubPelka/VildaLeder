@@ -98,7 +98,7 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("scripts/sync_skandobs.py", workflow)
         self.assertIn("continue-on-error: true", workflow)
 
-    def test_map_clusters_overlapping_points_and_observation_table_tracks_viewport(self):
+    def test_map_clusters_overlapping_points_and_observation_table_tracks_selection(self):
         html = (ROOT / "index.html").read_text(encoding="utf-8")
         app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
         map_source = (ROOT / "src" / "map.js").read_text(encoding="utf-8")
@@ -106,10 +106,13 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn('LAYER_OBSERVATION_CLUSTERS = "observations-clusters"', map_source)
         self.assertIn("point_count_abbreviated", map_source)
         self.assertIn("getClusterExpansionZoom", map_source)
-        self.assertIn("getVisibleObservations", map_source)
         self.assertIn('id="observation-table-panel"', html)
         self.assertIn('id="observation-table-body"', html)
-        self.assertIn("onViewportChange: handleViewportChange", app)
+        self.assertIn("setObservationTableRows(visibleMapObservations)", app)
+        self.assertNotIn("onViewportChange: handleViewportChange", app)
+        self.assertIn('data-sort="redlist"', html)
+        self.assertIn("REDLIST_PRIORITY[observation.redlistCategory]", app)
+        self.assertIn("sortObservationTable", app)
         self.assertIn("focusObservation(observation)", app)
         self.assertIn("OBSERVATION_TABLE_PAGE_SIZE", app)
 
