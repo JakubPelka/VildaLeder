@@ -37,7 +37,17 @@ The repository now contains a working vertical slice spanning parts of phases
 - numbered map clusters for overlapping coordinates and a selected-place,
   paginated observation table with sortable columns and row-to-map navigation;
 - map hover labels and click cards with authoritative OSM or Skyddad natur
-  source links for every selectable trail and reserve;
+  source links for every selectable destination;
+- an official Naturvårdsverket WFS adapter that groups walking-capable trail
+  segments by stable `Led_ID`, retains OSM trails as parallel provenance, and
+  adds 200-metre analysis buffers around bird hides, observation towers, and
+  observation platforms;
+- national parks as first-class protected-area features (with no Halland record,
+  but ready for the Sweden-wide catalog) and matching PostGIS geometry contracts;
+- one Red-List-prioritised row per unique taxon for a selected place, expandable
+  into recent source records and an accessible 53-week seasonality chart;
+- species-first weekly seasonality across the active filtered area and period,
+  recalculated for a selected place;
 - a keyboard- and pointer-accessible splitter that lets the user resize the map
   and observation table while retaining the chosen ratio locally;
 - trail-first and species-first (`havsörn` included) journeys;
@@ -298,17 +308,22 @@ services.
   optional reserve-name filter and a reserve-first journey: select a reserve to
   inspect recent species and intersecting walks, or select a species to rank
   reserves as well as trails across Sweden.
-- Evaluate Naturvårdsverket's **Leder och anordningar** as the primary source of
-  maintained public walking trails once its metadata catalogue is available
-  again, with OSM retained as a complementary source for wider community-mapped
-  coverage. Until the adapter can be verified, state clearly in the UI that the
-  OSM trail catalogue may be incomplete or outdated.
+- Continue using the verified Naturvårdsverket **Leder och
+  friluftsanordningar** WFS as the authoritative maintained-source complement to
+  OSM. Monitor schema/availability changes and preserve source-specific IDs and
+  geometries.
 - Normalise Naturvårdsverket and OSM trails into canonical features without
   discarding either source record. Generate duplicate candidates using provider
   IDs, normalised name/operator/municipality, endpoint proximity, and buffered
   line overlap or a measured line-distance metric. Automatically merge only
   strong matches, retain source IDs and geometries as provenance, and queue
   ambiguous candidates for review; a shared name alone must never merge routes.
+  Treat roughly 70% symmetric buffered-line coverage as a duplicate-candidate
+  threshold for evaluation, not an automatic merge. Require stronger measured
+  evidence (for example at least 85% bidirectional coverage plus compatible
+  name, length, endpoints, municipality, and operator) before unattended
+  canonicalisation; one-sided overlap should normally become a `part_of`
+  relation.
 - Materialise daily aggregates for `taxon × trail/reserve × date` so time-range
   counts, Sweden-wide species rankings, and optional `län`/`kommun` filters do
   not require repeated upstream API calls or browser downloads of raw points.

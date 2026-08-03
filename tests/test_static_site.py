@@ -72,11 +72,20 @@ class StaticSiteTests(unittest.TestCase):
         translations = (ROOT / "src" / "i18n.js").read_text(encoding="utf-8")
         self.assertIn('id="feature-kind"', html)
         self.assertIn('value="reserve"', html)
+        for feature_kind in (
+            "national_park",
+            "observation_tower",
+            "bird_hide",
+            "observation_site",
+        ):
+            self.assertIn(f'value="{feature_kind}"', html)
         self.assertIn('id="reset-filters"', html)
         self.assertIn('loadJson("data/features.json"', app)
         self.assertIn('loadJson("data/skandobs.json"', app)
         self.assertIn("trail.municipalities", core)
         self.assertIn('LAYER_RESERVES = "nature-reserves-fill"', map_source)
+        self.assertIn('LAYER_NATIONAL_PARKS = "national-parks-fill"', map_source)
+        self.assertIn('LAYER_DESTINATIONS = "nature-destinations-circle"', map_source)
         self.assertGreaterEqual(translations.count("maximumRangeNote"), 3)
         self.assertGreaterEqual(translations.count("sensitiveSpeciesNote"), 3)
         self.assertIn('data-i18n="trailCoverageNote"', html)
@@ -148,6 +157,18 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("WELCOME_COOKIE", app)
         self.assertIn("SameSite=Lax", app)
         self.assertIn("closeWelcomeDialog({ remember: true })", app)
+
+    def test_species_rows_are_grouped_expandable_and_show_weekly_seasonality(self):
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        core = (ROOT / "src" / "core.js").read_text(encoding="utf-8")
+        styles = (ROOT / "styles.css").read_text(encoding="utf-8")
+        self.assertIn('node("details", "taxon-row")', app)
+        self.assertIn('node("summary", "taxon-summary")', app)
+        self.assertIn("taxon.observations", app)
+        self.assertIn("weeklySeasonality(observations)", app)
+        self.assertIn('t("showAllSpecies"', app)
+        self.assertIn("export function weeklySeasonality", core)
+        self.assertIn("seasonality-chart", styles)
 
     def test_refresh_is_owned_by_the_local_server_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(

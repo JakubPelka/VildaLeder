@@ -5,7 +5,9 @@ const SOURCE_USER_LOCATION = "user-location";
 const LAYER_CORRIDORS = "trail-corridors-fill";
 const LAYER_CORRIDOR_OUTLINES = "trail-corridors-outline";
 const LAYER_RESERVES = "nature-reserves-fill";
+const LAYER_NATIONAL_PARKS = "national-parks-fill";
 const LAYER_TRAILS = "trails-line";
+const LAYER_DESTINATIONS = "nature-destinations-circle";
 const LAYER_OBSERVATION_CLUSTERS = "observations-clusters";
 const LAYER_OBSERVATION_CLUSTER_COUNT = "observations-cluster-count";
 const LAYER_OBSERVATIONS = "observations-circle";
@@ -171,10 +173,28 @@ function addDataLayers() {
     },
   });
   map.addLayer({
+    id: LAYER_NATIONAL_PARKS,
+    type: "fill",
+    source: SOURCE_TRAILS,
+    filter: [
+      "all",
+      ["==", ["get", "featureKind"], "national_park"],
+      ["==", ["get", "visible"], true],
+    ],
+    paint: {
+      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#287552"],
+      "fill-opacity": ["case", ["==", ["get", "selected"], true], 0.38, 0.24],
+    },
+  });
+  map.addLayer({
     id: LAYER_TRAILS,
     type: "line",
     source: SOURCE_TRAILS,
-    filter: ["==", ["get", "visible"], true],
+    filter: [
+      "all",
+      ["==", ["get", "featureKind"], "trail"],
+      ["==", ["get", "visible"], true],
+    ],
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
       "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#176b48"],
@@ -187,6 +207,32 @@ function addDataLayers() {
         1,
         0.82,
       ],
+    },
+  });
+  map.addLayer({
+    id: LAYER_DESTINATIONS,
+    type: "circle",
+    source: SOURCE_TRAILS,
+    filter: [
+      "all",
+      ["in", ["get", "featureKind"], ["literal", [
+        "bird_hide",
+        "observation_tower",
+        "observation_site",
+      ]]],
+      ["==", ["get", "visible"], true],
+    ],
+    paint: {
+      "circle-color": [
+        "match",
+        ["get", "featureKind"],
+        "bird_hide", "#65558f",
+        "observation_tower", "#176b8c",
+        "#ad6b19",
+      ],
+      "circle-radius": ["case", ["==", ["get", "selected"], true], 9, 6],
+      "circle-stroke-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#ffffff"],
+      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 3, 2],
     },
   });
   map.addLayer({
@@ -283,6 +329,8 @@ function bindMapInteractions() {
         LAYER_OBSERVATIONS,
         LAYER_TRAILS,
         LAYER_RESERVES,
+        LAYER_NATIONAL_PARKS,
+        LAYER_DESTINATIONS,
       ],
     });
     const clusterFeature = features.find(
@@ -305,14 +353,22 @@ function bindMapInteractions() {
       return;
     }
     const trailFeature = features.find((feature) =>
-      [LAYER_TRAILS, LAYER_RESERVES].includes(feature.layer.id),
+      [LAYER_TRAILS, LAYER_RESERVES, LAYER_NATIONAL_PARKS, LAYER_DESTINATIONS]
+        .includes(feature.layer.id),
     );
     if (trailFeature) {
       callbacks.onTrailClick?.(trailFeature.properties.trailId, event.lngLat);
     }
   });
 
-  [LAYER_OBSERVATION_CLUSTERS, LAYER_OBSERVATIONS, LAYER_TRAILS, LAYER_RESERVES].forEach((layerId) => {
+  [
+    LAYER_OBSERVATION_CLUSTERS,
+    LAYER_OBSERVATIONS,
+    LAYER_TRAILS,
+    LAYER_RESERVES,
+    LAYER_NATIONAL_PARKS,
+    LAYER_DESTINATIONS,
+  ].forEach((layerId) => {
     map.on("mouseenter", layerId, () => {
       map.getCanvas().style.cursor = "pointer";
     });
@@ -320,7 +376,7 @@ function bindMapInteractions() {
       map.getCanvas().style.cursor = "";
     });
   });
-  [LAYER_TRAILS, LAYER_RESERVES].forEach((layerId) => {
+  [LAYER_TRAILS, LAYER_RESERVES, LAYER_NATIONAL_PARKS, LAYER_DESTINATIONS].forEach((layerId) => {
     map.on("mouseenter", layerId, showFeatureTooltip);
     map.on("mousemove", layerId, moveFeatureTooltip);
     map.on("mouseleave", layerId, hideFeatureTooltip);

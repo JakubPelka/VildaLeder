@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backfill Swedish trails, reserves, and SOS observations into a private PostGIS database.
+"""Backfill Swedish nature destinations and SOS observations into private PostGIS.
 
 The job works one county at a time, stores county feature catalogs outside the
 public site, and relies on the existing feature/year SOS checkpoints. It never
@@ -25,12 +25,23 @@ import requests
 
 try:
     from scripts.refresh_data import RefreshError, iso_timestamp
-    from scripts.sync_features import build_catalog, fetch_reserves, fetch_routes, upsert_postgis
+    from scripts.sync_features import (
+        build_catalog,
+        fetch_national_parks,
+        fetch_nvl_destinations,
+        fetch_nvl_trails,
+        fetch_reserves,
+        fetch_routes,
+        upsert_postgis,
+    )
     from scripts.sync_halland_postgis import sync as sync_sos
 except ModuleNotFoundError:  # Direct execution adds scripts/ rather than the repository root.
     from refresh_data import RefreshError, iso_timestamp  # type: ignore[no-redef]
     from sync_features import (  # type: ignore[no-redef]
         build_catalog,
+        fetch_national_parks,
+        fetch_nvl_destinations,
+        fetch_nvl_trails,
         fetch_reserves,
         fetch_routes,
         upsert_postgis,
@@ -186,10 +197,15 @@ def build_county_catalog(
     municipalities: dict[str, str],
     output: Path,
 ) -> dict[str, Any]:
-    trails = fetch_routes(county.name, municipalities)
+    trails = [
+        *fetch_routes(county.name, municipalities),
+        *fetch_nvl_trails(county.name),
+    ]
     reserves = fetch_reserves(county.name, county.nvr_code)
+    national_parks = fetch_national_parks(county.name, county.nvr_code)
+    destinations = fetch_nvl_destinations(county.name)
     features = sorted(
-        [*trails, *reserves],
+        [*trails, *reserves, *national_parks, *destinations],
         key=lambda item: (item["featureKind"], item["name"].casefold(), item["id"]),
     )
     catalog = build_catalog(features, county.name, municipalities)
@@ -238,6 +254,17 @@ def process_county(
         catalog=str(catalog_path),
         trails=len([feature for feature in features if feature["featureKind"] == "trail"]),
         reserves=len([feature for feature in features if feature["featureKind"] == "reserve"]),
+        nationalParks=len(
+            [feature for feature in features if feature["featureKind"] == "national_park"]
+        ),
+        destinations=len(
+            [
+                feature
+                for feature in features
+                if feature["featureKind"]
+                in {"bird_hide", "observation_tower", "observation_site"}
+            ]
+        ),
         postgis=feature_stats,
     )
     if args.skip_observations:

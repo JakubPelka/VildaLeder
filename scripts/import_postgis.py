@@ -56,6 +56,12 @@ def source_ids(connection: psycopg.Connection[Any]) -> dict[str, int]:
             "spatial",
             "https://geodata.naturvardsverket.se/naturvardsregistret/",
         ),
+        (
+            "nvl",
+            "Leder och friluftsanordningar / Naturvårdsverket",
+            "spatial",
+            "https://geodata.naturvardsverket.se/nedladdning/friluftsliv/",
+        ),
         ("gbif", "Global Biodiversity Information Facility", "taxonomy", "https://www.gbif.org/"),
         ("dyntaxa", "Dyntaxa / SLU Artdatabanken", "taxonomy", "https://www.dyntaxa.se/"),
     )
@@ -170,6 +176,14 @@ def upsert_features(
                 "iucnCategory",
                 "manager",
                 "decisionStatus",
+                "trailType",
+                "trailCategory",
+                "description",
+                "marking",
+                "destinationType",
+                "destinationSubtype",
+                "protectedArea",
+                "protectedAreaId",
             )
             if feature.get(key) is not None
         }
@@ -192,7 +206,8 @@ def upsert_features(
                    %s, %s::jsonb, %s
                )
                ON CONFLICT (source_id, source_feature_id) DO UPDATE
-               SET canonical_name = EXCLUDED.canonical_name,
+               SET feature_kind = EXCLUDED.feature_kind,
+                   canonical_name = EXCLUDED.canonical_name,
                    length_km = EXCLUDED.length_km,
                    geom = EXCLUDED.geom,
                    analysis_geom = EXCLUDED.analysis_geom,

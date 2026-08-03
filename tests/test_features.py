@@ -9,6 +9,9 @@ from shapely.geometry import shape
 from scripts.sync_features import (
     BUFFER_METERS,
     build_catalog,
+    fetch_nvl_trails,
+    nvl_county_label,
+    nvl_destination_feature,
     overpass_query,
     reserve_feature,
     reserve_municipalities,
@@ -62,6 +65,77 @@ class FeatureSyncTests(unittest.TestCase):
         self.assertEqual(catalog["meta"]["area"], "Halland")
         self.assertEqual(catalog["meta"]["bufferMeters"], 200)
         self.assertEqual(catalog["meta"]["maximumObservationYears"], 10)
+        self.assertIn("Naturvårdsverket", catalog["meta"]["sources"]["trails"])
+
+    def test_nvl_county_labels_cover_grammar_variants(self):
+        self.assertEqual(nvl_county_label("Halland"), "Hallands Län")
+        self.assertEqual(nvl_county_label("Kronoberg"), "Kronobergs Län")
+        self.assertEqual(nvl_county_label("Dalarna"), "Dalarnas Län")
+
+    @patch("scripts.sync_features.fetch_nvl_rows")
+    def test_nvl_segments_are_grouped_as_one_buffered_walking_trail(self, fetch_rows):
+        fetch_rows.return_value = [
+            {
+                "geometry": {
+                    "type": "MultiLineString",
+                    "coordinates": [[[12.80, 56.70], [12.81, 56.71]]],
+                },
+                "properties": {
+                    "Led_ID": "42",
+                    "Lednamn": "Testleden",
+                    "Typ_av_led": "Vandringsled",
+                    "Kommun": "Halmstad",
+                },
+            },
+            {
+                "geometry": {
+                    "type": "MultiLineString",
+                    "coordinates": [[[12.81, 56.71], [12.82, 56.72]]],
+                },
+                "properties": {
+                    "Led_ID": "42",
+                    "Lednamn": "Testleden",
+                    "Typ_av_led": "Vandringsled",
+                    "Kommun": "Halmstad",
+                },
+            },
+            {
+                "geometry": {
+                    "type": "MultiLineString",
+                    "coordinates": [[[12.70, 56.70], [12.71, 56.71]]],
+                },
+                "properties": {
+                    "Led_ID": "99",
+                    "Lednamn": "Cykelleden",
+                    "Typ_av_led": "Cykelled",
+                    "Kommun": "Halmstad",
+                },
+            },
+        ]
+        trails = fetch_nvl_trails("Halland")
+        self.assertEqual(len(trails), 1)
+        self.assertEqual(trails[0]["id"], "nvl-led-42")
+        self.assertEqual(trails[0]["source"], "nvl")
+        self.assertGreater(trails[0]["lengthKm"], 0)
+        self.assertTrue(shape(trails[0]["analysisGeometry"]).contains(shape(trails[0]["geometry"])))
+
+    def test_nvl_bird_destination_gets_point_and_200_metre_buffer(self):
+        feature = nvl_destination_feature(
+            {
+                "geometry": {"type": "MultiPoint", "coordinates": [[12.9, 56.7]]},
+                "properties": {
+                    "Anordning_ID": "77",
+                    "Anordningsnamn": "Testtornet",
+                    "Typ": "Fågeltorn",
+                    "Kommun": "Halmstad",
+                },
+            },
+            "Halland",
+        )
+        self.assertEqual(feature["featureKind"], "observation_tower")
+        self.assertEqual(feature["sourceFeatureId"], "site-77")
+        self.assertEqual(shape(feature["geometry"]).geom_type, "Point")
+        self.assertTrue(shape(feature["analysisGeometry"]).contains(shape(feature["geometry"])))
 
     def test_geometry_changes_invalidate_observation_coverage(self):
         source = (ROOT / "scripts" / "sync_features.py").read_text(encoding="utf-8")
@@ -75,13 +149,23 @@ class GeneratedFeatureCatalogTests(unittest.TestCase):
     def setUpClass(cls):
         cls.catalog = json.loads((ROOT / "data" / "features.json").read_text(encoding="utf-8"))
 
-    def test_catalog_covers_halland_trails_reserves_and_municipalities(self):
+    def test_catalog_covers_halland_destinations_and_municipalities(self):
         features = self.catalog["features"]
         trails = [feature for feature in features if feature["featureKind"] == "trail"]
         reserves = [feature for feature in features if feature["featureKind"] == "reserve"]
-        self.assertGreaterEqual(len(features), 370)
-        self.assertGreaterEqual(len(trails), 170)
-        self.assertGreaterEqual(len(reserves), 200)
+        destinations = [
+            feature
+            for feature in features
+            if feature["featureKind"]
+            in {"bird_hide", "observation_tower", "observation_site"}
+        ]
+        self.assertGreaterEqual(len(features), 530)
+        self.assertGreaterEqual(len(trails), 305)
+        self.assertGreaterEqual(len(reserves), 210)
+        self.assertGreaterEqual(len(destinations), 10)
+        self.assertGreaterEqual(
+            len([feature for feature in trails if feature["source"] == "nvl"]), 130
+        )
         self.assertEqual(
             self.catalog["meta"]["municipalities"],
             ["Falkenberg", "Halmstad", "Hylte", "Kungsbacka", "Laholm", "Varberg"],
@@ -92,7 +176,7 @@ class GeneratedFeatureCatalogTests(unittest.TestCase):
             20,
         )
 
-    def test_every_reserve_has_valid_polygon_and_larger_analysis_area(self):
+    def test_every_destination_has_valid_geometry_and_analysis_area(self):
         for feature in self.catalog["features"]:
             geometry = shape(feature["geometry"])
             analysis = shape(feature["analysisGeometry"])
@@ -102,6 +186,13 @@ class GeneratedFeatureCatalogTests(unittest.TestCase):
             if feature["featureKind"] == "reserve":
                 self.assertIn(geometry.geom_type, {"Polygon", "MultiPolygon"})
                 self.assertGreater(analysis.area, geometry.area)
+            if feature["featureKind"] in {
+                "bird_hide",
+                "observation_tower",
+                "observation_site",
+            }:
+                self.assertEqual(geometry.geom_type, "Point")
+                self.assertTrue(analysis.contains(geometry))
 
 
 if __name__ == "__main__":
