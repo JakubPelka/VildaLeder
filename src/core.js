@@ -84,7 +84,9 @@ function categoryPriority(category) {
 export function groupTaxa(observations) {
   const grouped = new Map();
   for (const observation of observations) {
-    const key = observation.taxonId ?? observation.scientificName ?? observation.vernacularName;
+    const key = normalize(observation.scientificName)
+      || normalize(observation.vernacularName)
+      || String(observation.taxonId ?? "");
     if (!key) continue;
     const current = grouped.get(key) || {
       taxonId: observation.taxonId,
