@@ -691,13 +691,17 @@ function renderResolvedTrailDetails(trail, observations) {
       });
       elements.trailDetails.append(list);
       if (taxa.length > MAX_TAXA_SHOWN) {
-        elements.trailDetails.append(
-          node(
-            "p",
-            "help-text",
-            t("moreSpecies", { shown: MAX_TAXA_SHOWN, total: formatNumber(taxa.length) }),
-          ),
+        const showAll = node(
+          "button",
+          "show-all-species",
+          t("showAllSpecies", { count: formatNumber(taxa.length) }),
         );
+        showAll.type = "button";
+        showAll.addEventListener("click", () => {
+          taxa.slice(MAX_TAXA_SHOWN).forEach((taxon) => list.append(taxonRow(taxon)));
+          showAll.remove();
+        });
+        elements.trailDetails.append(showAll);
       }
     }
   }

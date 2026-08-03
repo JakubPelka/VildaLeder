@@ -486,6 +486,18 @@ label > span,
   gap: 0.45rem;
 }
 
+.show-all-species {
+  width: 100%;
+  margin-top: 0.65rem;
+  padding: 0.55rem;
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
 .taxon-row {
   padding: 0;
   border-bottom: 1px solid #edf0ed;

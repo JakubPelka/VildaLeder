@@ -166,6 +166,7 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn('node("summary", "taxon-summary")', app)
         self.assertIn("taxon.observations", app)
         self.assertIn("weeklySeasonality(observations)", app)
+        self.assertIn('t("showAllSpecies"', app)
         self.assertIn("export function weeklySeasonality", core)
         self.assertIn("seasonality-chart", styles)
 
