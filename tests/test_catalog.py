@@ -19,6 +19,18 @@ class CatalogTests(unittest.TestCase):
         )
         cls.feature_ids = {feature["id"] for feature in feature_catalog["features"]}
 
+    def place_daily_counts(self):
+        counts = {}
+        for path in self.index["placeRankingFiles"].values():
+            payload = json.loads((ROOT / path).read_text(encoding="utf-8"))
+            counts.update(payload["trails"])
+        return counts
+
+    def species_trails(self, taxon):
+        path = self.index["speciesRankingFiles"][taxon["rankingBucket"]]
+        payload = json.loads((ROOT / path).read_text(encoding="utf-8"))
+        return payload["taxa"][str(taxon["taxonId"])]
+
     def partition_records(self, trail):
         for manifest in trail["observationFiles"]:
             self.assertLessEqual(manifest["start"], manifest["end"])
@@ -105,8 +117,9 @@ class CatalogTests(unittest.TestCase):
 
     def test_daily_index_matches_manifest_totals_and_has_redlist_metadata(self):
         indexed_total = 0
+        place_counts = self.place_daily_counts()
         for trail in self.catalog["trails"]:
-            daily = self.index["trails"].get(trail["id"], [])
+            daily = place_counts.get(trail["id"], [])
             count = sum(value for _, value in daily)
             indexed_total += count
             self.assertEqual(count, trail["observationTotal"])
@@ -156,9 +169,24 @@ class CatalogTests(unittest.TestCase):
         )
         records = [record for record in self.partition_records(trail) if record[2] == 100091]
         taxon = next(taxon for taxon in self.index["taxa"] if taxon["taxonId"] == 100091)
-        ranked_count = sum(value for _, value in taxon["trails"][trail["id"]])
+        ranked_count = sum(value for _, value in self.species_trails(taxon)[trail["id"]])
         self.assertEqual(ranked_count, 252)
         self.assertEqual(len(records), ranked_count)
+
+    def test_search_bootstrap_is_lightweight_and_rankings_are_lazy(self):
+        index_path = ROOT / "data" / "search-index.json"
+        self.assertLess(index_path.stat().st_size, 5_000_000)
+        self.assertEqual(self.index["schemaVersion"], 2)
+        self.assertTrue(self.index["taxaRankingsLazy"])
+        self.assertNotIn("trails", self.index)
+        self.assertTrue(all("trails" not in taxon for taxon in self.index["taxa"]))
+        self.assertGreaterEqual(len(self.index["speciesRankingFiles"]), 200)
+        self.assertTrue(
+            all((ROOT / path).is_file() for path in self.index["placeRankingFiles"].values())
+        )
+        self.assertTrue(
+            all((ROOT / path).is_file() for path in self.index["speciesRankingFiles"].values())
+        )
 
     def test_snapshot_spans_about_ten_years(self):
         start = date.fromisoformat(self.catalog["meta"]["windowStart"])

@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260803-seasonality-destinations-v12">
+    <link rel="stylesheet" href="styles.css?v=20260803-issues-13-22-v13">
   </head>
   <body>
     <section
@@ -99,13 +99,12 @@
           <label>
             <span data-i18n="placeType">Place type</span>
             <select id="feature-kind">
-              <option value="" data-i18n="allPlaceTypes">All nature destinations</option>
+              <option value="" data-i18n="choosePlaceType" selected>Choose what to show</option>
               <option value="trail" data-i18n="trailsOnly">Trails</option>
               <option value="reserve" data-i18n="reservesOnly">Nature reserves</option>
               <option value="national_park" data-i18n="nationalParksOnly">National parks</option>
-              <option value="observation_tower" data-i18n="observationTowersOnly">Observation towers</option>
-              <option value="bird_hide" data-i18n="birdHidesOnly">Bird hides</option>
-              <option value="observation_site" data-i18n="observationSitesOnly">Observation sites</option>
+              <option value="observation_infrastructure" data-i18n="observationInfrastructureOnly">Observation infrastructure</option>
+              <option value="all" data-i18n="allPlaceTypes">All places</option>
             </select>
           </label>
           <div class="two-columns">
@@ -194,28 +193,38 @@
           <div id="species-results" class="result-list"></div>
         </section>
 
-        <section id="trail-details" class="details" aria-live="polite"></section>
+        <div id="trail-details-home">
+          <section id="trail-details" class="details" aria-live="polite"></section>
+        </div>
       </aside>
 
       <section class="map-panel" aria-label="Nature destination map">
         <div class="map-stage">
           <div id="map"></div>
-          <button id="locate-user" class="locate-user" type="button" aria-pressed="false">
-            <span data-i18n="showMyLocation">Show my location</span>
+          <button id="locate-user" class="locate-user" type="button" aria-pressed="false" disabled>
+            <svg class="locate-user-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+              <circle cx="12" cy="12" r="7"></circle>
+            </svg>
+            <span class="sr-only" data-i18n="showMyLocation">Show my location</span>
           </button>
           <p id="location-status" class="location-status" role="status" aria-live="polite" hidden></p>
           <p id="map-observation-summary" class="map-observation-summary" data-count="0" data-i18n="mapSelectTrail">
             Select a trail to show observations on the map.
           </p>
-          <div class="map-key">
-            <span><i class="key-line"></i><span data-i18n="trail">Trail</span></span>
-            <span><i class="key-reserve"></i><span data-i18n="protectedArea">Reserve / national park</span></span>
-            <span><i class="key-destination"></i><span data-i18n="birdDestination">Birding destination</span></span>
-            <span><i class="key-corridor"></i><span data-i18n="corridor">200 m corridor</span></span>
-            <span><i class="key-cluster">12</i><span data-i18n="clusterLegend">Clustered observations</span></span>
-            <strong data-i18n="redListLegend">Observation points · Red List</strong>
-            <div id="redlist-filters" class="redlist-filters" aria-live="polite"></div>
-          </div>
+          <details class="map-key">
+            <summary data-i18n="mapLegend">Map legend</summary>
+            <div class="map-key-content">
+              <span><i class="key-line"></i><span data-i18n="trail">Trail</span></span>
+              <span><i class="key-reserve"></i><span data-i18n="protectedArea">Reserve / national park</span></span>
+              <span><i class="key-destination"></i><span data-i18n="observationInfrastructure">Observation infrastructure</span></span>
+              <span><i class="key-corridor"></i><span data-i18n="corridor">200 m corridor</span></span>
+              <span><i class="key-cluster">12</i><span data-i18n="clusterLegend">Clustered observations</span></span>
+              <strong data-i18n="redListLegend">Observation points · Red List</strong>
+              <div id="redlist-filters" class="redlist-filters" aria-live="polite"></div>
+            </div>
+          </details>
         </div>
         <div
           id="map-table-resizer"
@@ -245,13 +254,13 @@
                     <button class="observation-sort-button" type="button" data-sort="species" data-i18n="observationSpecies">Species</button>
                   </th>
                   <th scope="col" aria-sort="descending">
-                    <button class="observation-sort-button" type="button" data-sort="date" data-direction="desc" data-i18n="observationDate">Date</button>
+                    <button class="observation-sort-button" type="button" data-sort="date" data-direction="desc" data-i18n="lastSeenColumn">Last seen</button>
                   </th>
                   <th scope="col" aria-sort="none">
                     <button class="observation-sort-button" type="button" data-sort="redlist" data-i18n="redListCategory">Red List</button>
                   </th>
                   <th scope="col" aria-sort="none">
-                    <button class="observation-sort-button" type="button" data-sort="source" data-i18n="source">Source</button>
+                    <button class="observation-sort-button" type="button" data-sort="source" data-i18n="sourcesColumn">Sources</button>
                   </th>
                 </tr>
               </thead>
@@ -281,6 +290,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260803-seasonality-destinations-v12"></script>
+    <script type="module" src="src/app.js?v=20260803-issues-13-22-v13"></script>
   </body>
 </html>

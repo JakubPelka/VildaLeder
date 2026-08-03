@@ -157,6 +157,14 @@ species_files = [
 ]
 if not species_files or any(not Path(item["path"]).is_file() for item in species_files):
     raise SystemExit("Refusing publication with an incomplete species-point snapshot")
+ranking_files = [
+    *search_index.get("placeRankingFiles", {}).values(),
+    *search_index.get("speciesRankingFiles", {}).values(),
+]
+if not ranking_files or any(not Path(path).is_file() for path in ranking_files):
+    raise SystemExit("Refusing publication with incomplete lazy ranking files")
+if any("trails" in taxon for taxon in search_index.get("taxa", [])):
+    raise SystemExit("Refusing publication with inline taxon rankings in the startup index")
 oversized = [path for path in Path("data").rglob("*") if path.is_file() and path.stat().st_size >= 95_000_000]
 if oversized:
     raise SystemExit("Refusing files near GitHub's 100 MB limit: " + ", ".join(map(str, oversized)))
@@ -171,7 +179,7 @@ PY
 
 git config user.name "VildaLeder server refresh"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-git add data/catalog.json data/features.json data/search-index.json data/skandobs.json data/observations data/species-observations
+git add data/catalog.json data/features.json data/search-index.json data/skandobs.json data/observations data/place-rankings data/species-observations data/species-rankings
 if git diff --cached --quiet; then
   log "No publishable data changes"
   exit 0

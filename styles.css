@@ -348,6 +348,16 @@ label > span,
   margin-top: 0.75rem;
 }
 
+.species-result-item {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.species-result-item > .details {
+  margin: 0 0 0.65rem;
+  border-left: 3px solid var(--brand);
+}
+
 .result-card {
   width: 100%;
   padding: 0.75rem;
@@ -465,7 +475,8 @@ label > span,
   -webkit-line-clamp: 4;
 }
 
-.clear-place-selection {
+.clear-place-selection,
+.share-place-location {
   padding: 0;
   border: 0;
   background: transparent;
@@ -477,61 +488,16 @@ label > span,
   text-underline-offset: 0.15em;
 }
 
-.clear-place-selection:hover {
+.clear-place-selection:hover,
+.share-place-location:hover {
   color: var(--brand);
 }
 
-.taxon-list {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.show-all-species {
-  width: 100%;
-  margin-top: 0.65rem;
-  padding: 0.55rem;
-  border-color: var(--brand);
-  background: var(--brand-soft);
-  color: var(--brand-dark);
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 750;
-}
-
-.taxon-row {
-  padding: 0;
-  border-bottom: 1px solid #edf0ed;
-}
-
-.taxon-summary {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: start;
-  gap: 0.55rem;
-  padding: 0.65rem 0;
-  cursor: pointer;
-  list-style: none;
-}
-
-.taxon-summary::-webkit-details-marker {
-  display: none;
-}
-
-.taxon-summary::after {
-  grid-column: 2 / -1;
-  color: var(--brand);
-  content: "+";
-  font-size: 0.8rem;
-  font-weight: 800;
-  line-height: 0.7;
-}
-
-.taxon-row[open] > .taxon-summary::after {
-  content: "−";
-}
-
-.taxon-expanded {
-  padding: 0 0 0.9rem 2.75rem;
+.feature-popup .navigate-to-place,
+.feature-popup .share-place-location {
+  display: inline-block;
+  margin-top: 0.45rem;
+  margin-right: 0.7rem;
 }
 
 .seasonality-panel {
@@ -546,8 +512,7 @@ label > span,
   margin-top: 0.8rem;
 }
 
-.seasonality-title,
-.taxon-observation-explorer h4 {
+.seasonality-title {
   margin: 0;
   color: var(--ink);
   font-size: 0.82rem;
@@ -589,35 +554,6 @@ label > span,
   font-size: 10px;
 }
 
-.taxon-observation-explorer {
-  display: grid;
-  gap: 0.28rem;
-  margin-top: 0.7rem;
-}
-
-.taxon-observation-record {
-  display: flex;
-  min-height: auto;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.35rem 0.45rem;
-  border-color: var(--line);
-  background: #fff;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 0.7rem;
-}
-
-.taxon-observation-record:hover {
-  border-color: var(--brand);
-  color: var(--ink);
-}
-
-.taxon-name {
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
 .scientific-name {
   display: block;
   margin-top: 0.12rem;
@@ -625,12 +561,6 @@ label > span,
   font-size: 0.73rem;
   font-style: italic;
   font-weight: 400;
-}
-
-.taxon-count {
-  color: var(--muted);
-  font-size: 0.76rem;
-  text-align: right;
 }
 
 .redlist-badge {
@@ -687,9 +617,6 @@ label > span,
   z-index: 3;
   right: 0.8rem;
   bottom: 1.5rem;
-  display: grid;
-  gap: 0.35rem;
-  padding: 0.55rem 0.65rem;
   border: 1px solid var(--line);
   border-radius: 0.45rem;
   background: rgb(255 255 255 / 92%);
@@ -698,13 +625,30 @@ label > span,
   font-size: 0.7rem;
 }
 
+.map-key summary {
+  padding: 0.55rem 0.65rem;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 750;
+  list-style-position: inside;
+}
+
+.map-key-content {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 12rem;
+  padding: 0 0.65rem 0.65rem;
+}
+
 .locate-user {
   position: absolute;
   z-index: 4;
   top: 5.6rem;
   left: 0.65rem;
-  min-height: 2.25rem;
-  padding: 0.45rem 0.65rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0.4rem;
   border: 2px solid rgb(0 0 0 / 12%);
   border-radius: 0.35rem;
   background: rgb(255 255 255 / 96%);
@@ -713,6 +657,20 @@ label > span,
   cursor: pointer;
   font-size: 0.72rem;
   font-weight: 750;
+}
+
+.locate-user:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.locate-user-icon {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
 }
 
 .locate-user:hover,
@@ -737,13 +695,13 @@ label > span,
   font-size: 0.72rem;
 }
 
-.map-key strong {
+.map-key-content strong {
   margin-top: 0.2rem;
   color: var(--ink);
   font-size: 0.68rem;
 }
 
-.map-key > span {
+.map-key-content > span {
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -1038,14 +996,10 @@ body.is-resizing-map-table {
 
 .observation-table-panel tbody tr {
   background: #fff;
-  cursor: pointer;
 }
 
-.observation-table-panel tbody tr:hover,
-.observation-table-panel tbody tr:focus-visible {
+.observation-table-panel tbody .observation-group-row:hover {
   background: var(--brand-soft);
-  outline: 2px solid var(--brand);
-  outline-offset: -2px;
 }
 
 .observation-table-panel tbody tr:last-child td {
@@ -1054,6 +1008,85 @@ body.is-resizing-map-table {
 
 .observation-species-name {
   font-weight: 700;
+}
+
+.observation-group-toggle {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.observation-group-toggle .scientific-name {
+  grid-column: 2 / -1;
+}
+
+.observation-group-chevron {
+  display: inline-flex;
+  width: 1.35rem;
+  height: 1.35rem;
+  grid-row: 1 / span 2;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.observation-group-count {
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.observation-details-row td {
+  padding: 0.45rem 0.75rem 0.75rem;
+  background: #f7faf7;
+}
+
+.observation-record-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.observation-record-heading {
+  margin: 0.8rem 0 0.45rem;
+  font-size: 0.85rem;
+}
+
+.observation-record-item {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.7fr) minmax(6rem, 0.7fr) minmax(8rem, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border-left: 2px solid var(--line);
+}
+
+.observation-record-zoom {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand-dark);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.observation-record-meta {
+  color: var(--muted);
 }
 
 .table-pagination {

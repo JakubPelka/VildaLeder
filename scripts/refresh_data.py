@@ -26,6 +26,11 @@ from pyproj import Transformer
 from shapely.geometry import LineString, MultiLineString, mapping
 from shapely.ops import transform
 
+try:
+    from scripts.split_search_index import write_search_bundle
+except ModuleNotFoundError:
+    from split_search_index import write_search_bundle  # type: ignore[no-redef]
+
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 SOS_BASE_URL = "https://api.artdatabanken.se/species-observation-system/v1"
@@ -815,7 +820,13 @@ def main() -> int:
     try:
         catalog, index = build_dataset(args)
         write_json(args.output, catalog)
-        write_json(args.index_output, index)
+        write_search_bundle(
+            index,
+            catalog["trails"],
+            args.index_output,
+            args.index_output.parent / "place-rankings",
+            args.index_output.parent / "species-rankings",
+        )
     except (RefreshError, requests.RequestException) as exc:
         print(f"refresh failed: {exc}", file=sys.stderr)
         return 1
