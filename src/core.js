@@ -45,6 +45,27 @@ export function filterObservations(observations, range) {
   });
 }
 
+export function countDated(entries, range) {
+  return (entries || []).reduce(
+    (total, [day, count]) => (day >= range.start && day <= range.end ? total + count : total),
+    0,
+  );
+}
+
+export function lastDated(entries, range) {
+  return (entries || []).reduce(
+    (latest, [day, count]) =>
+      count > 0 && day >= range.start && day <= range.end && day > latest ? day : latest,
+    "",
+  );
+}
+
+export function observationFilesForRange(trail, range) {
+  return (trail.observationFiles || []).filter(
+    (file) => file.start <= range.end && file.end >= range.start,
+  );
+}
+
 export function filteredTrails(trails, filters) {
   const query = normalize(filters.query);
   return trails.filter((trail) => {
@@ -96,7 +117,15 @@ export function groupTaxa(observations) {
   });
 }
 
-export function speciesCatalog(trails) {
+export function speciesCatalog(source) {
+  if (source?.taxa) {
+    return [...source.taxa].sort((left, right) =>
+      normalize(left.vernacularName || left.scientificName).localeCompare(
+        normalize(right.vernacularName || right.scientificName),
+      ),
+    );
+  }
+  const trails = source || [];
   const catalog = new Map();
   for (const trail of trails) {
     for (const observation of trail.observations) {
@@ -143,8 +172,38 @@ export function resolveSpecies(catalog, query) {
   return matches.length === 1 ? matches[0] : null;
 }
 
-export function rankTrailsForSpecies(trails, species, range) {
+export function indexedTrailStats(searchIndex, trailId, range) {
+  let species = 0;
+  for (const taxon of searchIndex.taxa || []) {
+    if (countDated(taxon.trails?.[trailId], range) > 0) species += 1;
+  }
+  return {
+    observations: countDated(searchIndex.trails?.[trailId], range),
+    species,
+  };
+}
+
+export function rankTrailsForSpecies(trails, species, range, searchIndex) {
   if (!species) return [];
+  if (searchIndex) {
+    const indexedSpecies = (searchIndex.taxa || []).find(
+      (candidate) => String(candidate.taxonId) === String(species.taxonId),
+    );
+    if (!indexedSpecies) return [];
+    return trails
+      .map((trail) => ({
+        trail,
+        count: countDated(indexedSpecies.trails?.[trail.id], range),
+        lastSeen: lastDated(indexedSpecies.trails?.[trail.id], range),
+      }))
+      .filter((result) => result.count > 0)
+      .sort(
+        (left, right) =>
+          right.count - left.count ||
+          right.lastSeen.localeCompare(left.lastSeen) ||
+          left.trail.name.localeCompare(right.trail.name),
+      );
+  }
   return trails
     .map((trail) => {
       const observations = filterObservations(trail.observations, range).filter(
@@ -168,4 +227,3 @@ export function rankTrailsForSpecies(trails, species, range) {
         left.trail.name.localeCompare(right.trail.name),
     );
 }
-

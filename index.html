@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260803-map-observations-v2">
+    <link rel="stylesheet" href="styles.css?v=20260803-halmstad-scale-v1">
   </head>
   <body>
     <header class="app-header">
@@ -150,16 +150,7 @@
           <span><i class="key-line"></i><span data-i18n="trail">Trail</span></span>
           <span><i class="key-corridor"></i><span data-i18n="corridor">200 m corridor</span></span>
           <strong data-i18n="redListLegend">Observation points · Red List</strong>
-          <span><i class="key-observation" data-category="EX"></i>EX</span>
-          <span><i class="key-observation" data-category="RE"></i>RE</span>
-          <span><i class="key-observation" data-category="CR"></i>CR</span>
-          <span><i class="key-observation" data-category="EN"></i>EN</span>
-          <span><i class="key-observation" data-category="VU"></i>VU</span>
-          <span><i class="key-observation" data-category="NT"></i>NT</span>
-          <span><i class="key-observation" data-category="DD"></i>DD</span>
-          <span><i class="key-observation" data-category="LC"></i>LC</span>
-          <span><i class="key-observation" data-category="NE"></i>NE / NA</span>
-          <span><i class="key-observation" data-category="other"></i><span data-i18n="otherCategory">No category</span></span>
+          <div id="redlist-filters" class="redlist-filters" aria-live="polite"></div>
         </div>
       </section>
     </main>
@@ -174,6 +165,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260803-map-observations-v2"></script>
+    <script type="module" src="src/app.js?v=20260803-halmstad-scale-v1"></script>
   </body>
 </html>

@@ -3,8 +3,11 @@ import {
   filterObservations,
   filteredTrails,
   groupTaxa,
+  indexedTrailStats,
+  observationFilesForRange,
   periodRange,
   rankTrailsForSpecies,
+  REDLIST_PRIORITY,
   resolveSpecies,
   speciesCatalog,
   speciesLabel,
@@ -23,6 +26,12 @@ const MAX_TAXA_SHOWN = 100;
 
 const state = {
   catalog: null,
+  searchIndex: null,
+  taxonById: new Map(),
+  partitionCache: new Map(),
+  loadedSelection: null,
+  detailsRequest: 0,
+  disabledRedlistCategories: new Set(),
   language: initialLanguage(),
   mode: "trail",
   county: "",
@@ -56,6 +65,7 @@ const elements = {
   speciesResults: document.querySelector("#species-results"),
   trailDetails: document.querySelector("#trail-details"),
   mapObservationSummary: document.querySelector("#map-observation-summary"),
+  redlistFilters: document.querySelector("#redlist-filters"),
   modeTabs: [...document.querySelectorAll(".mode-tab")],
 };
 
@@ -154,7 +164,7 @@ function fillSelect(select, values, emptyLabel, selected) {
 
 function populateSpeciesSuggestions() {
   elements.speciesSuggestions.replaceChildren();
-  speciesCatalog(state.catalog.trails).forEach((species) => {
+  speciesCatalog(state.searchIndex).forEach((species) => {
     const option = document.createElement("option");
     option.value = speciesLabel(species);
     elements.speciesSuggestions.append(option);
@@ -170,7 +180,7 @@ function renderAll() {
   });
   renderTrailResults();
   renderSpeciesResults();
-  renderTrailDetails();
+  void renderTrailDetails();
   updateMapStyles();
 }
 
@@ -183,8 +193,7 @@ function renderTrailResults() {
     return;
   }
   trails.forEach((trail) => {
-    const observations = filterObservations(trail.observations, range);
-    const taxa = groupTaxa(observations);
+    const stats = indexedTrailStats(state.searchIndex, trail.id, range);
     const button = node("button", "result-card");
     button.type = "button";
     button.classList.toggle("is-selected", trail.id === state.selectedTrailId);
@@ -194,8 +203,8 @@ function renderTrailResults() {
         "span",
         "result-meta",
         `${t("length", { value: trail.lengthKm })} · ${t("observations", {
-          count: formatNumber(observations.length),
-        })} · ${t("species", { count: formatNumber(taxa.length) })}`,
+          count: formatNumber(stats.observations),
+        })} · ${t("species", { count: formatNumber(stats.species) })}`,
       ),
     );
     button.addEventListener("click", () => selectTrail(trail.id));
@@ -206,12 +215,12 @@ function renderTrailResults() {
 function renderSpeciesResults() {
   elements.speciesResults.replaceChildren();
   elements.speciesSummary.replaceChildren();
+  state.selectedSpecies = null;
   if (!state.speciesQuery.trim()) {
     elements.speciesResults.append(node("p", "empty-state", t("noSpecies")));
-    state.selectedSpecies = null;
     return;
   }
-  const allSpecies = speciesCatalog(state.catalog.trails);
+  const allSpecies = speciesCatalog(state.searchIndex);
   state.selectedSpecies = resolveSpecies(allSpecies, state.speciesQuery);
   if (!state.selectedSpecies) {
     elements.speciesResults.append(node("p", "empty-state", t("speciesNotFound")));
@@ -220,7 +229,12 @@ function renderSpeciesResults() {
   elements.speciesSummary.textContent = t("rankedFor", {
     species: speciesLabel(state.selectedSpecies),
   });
-  const rankings = rankTrailsForSpecies(areaTrails(), state.selectedSpecies, currentRange());
+  const rankings = rankTrailsForSpecies(
+    areaTrails(),
+    state.selectedSpecies,
+    currentRange(),
+    state.searchIndex,
+  );
   if (!rankings.length) {
     elements.speciesResults.append(node("p", "empty-state", t("noObservations")));
     return;
@@ -244,23 +258,108 @@ function renderSpeciesResults() {
   });
 }
 
-function renderTrailDetails() {
-  elements.trailDetails.replaceChildren();
+function selectionKey(trail, range) {
+  return `${trail.id}|${range.start}|${range.end}`;
+}
+
+async function loadPartition(file) {
+  if (!state.partitionCache.has(file.path)) {
+    state.partitionCache.set(
+      file.path,
+      fetch(file.path).then((response) => {
+        if (!response.ok) throw new Error(`Partition request failed: ${response.status}`);
+        return response.json();
+      }),
+    );
+  }
+  return state.partitionCache.get(file.path);
+}
+
+function expandObservation(record) {
+  const [sourceId, day, taxonId, individualCount, flags, latitude, longitude, uncertaintyMeters] =
+    record;
+  const taxon = state.taxonById.get(String(taxonId)) || {};
+  const hasArtportalenId = /^\d+$/.test(String(sourceId));
+  return {
+    id: hasArtportalenId ? `urn:lsid:artportalen.se:sighting:${sourceId}` : String(sourceId),
+    date: day,
+    taxonId,
+    scientificName: taxon.scientificName,
+    vernacularName: taxon.vernacularName,
+    organismGroup: taxon.organismGroup,
+    redlistCategory: taxon.redlistCategory,
+    individualCount,
+    verified: Boolean(flags & 1),
+    uncertainIdentification: Boolean(flags & 2),
+    latitude,
+    longitude,
+    uncertaintyMeters,
+    sourceUrl: hasArtportalenId
+      ? `https://www.artportalen.se/sighting/${sourceId}`
+      : null,
+    dataset: "Artportalen",
+  };
+}
+
+async function loadTrailObservations(trail, range) {
+  const files = observationFilesForRange(trail, range);
+  const partitions = await Promise.all(files.map(loadPartition));
+  return filterObservations(
+    partitions.flatMap((partition) => (partition.records || []).map(expandObservation)),
+    range,
+  );
+}
+
+async function renderTrailDetails() {
+  const request = ++state.detailsRequest;
   const trail = state.catalog.trails.find((candidate) => candidate.id === state.selectedTrailId);
+  elements.trailDetails.replaceChildren();
   if (!trail) {
     setObservations([]);
+    renderRedlistFilters([]);
     renderMapObservationSummary(null, 0);
     elements.trailDetails.append(node("p", "empty-state", t("selectTrail")));
     return;
   }
-  const observations = filterObservations(trail.observations, currentRange());
+
+  const range = currentRange();
+  const key = selectionKey(trail, range);
+  if (state.loadedSelection?.key === key) {
+    renderResolvedTrailDetails(trail, state.loadedSelection.observations);
+    return;
+  }
+
+  setObservations([]);
+  renderRedlistFilters([]);
+  renderMapObservationSummary(trail, 0);
+  elements.trailDetails.append(node("p", "empty-state loading-observations", t("loadingTrail")));
+  try {
+    const observations = await loadTrailObservations(trail, range);
+    if (request !== state.detailsRequest) return;
+    state.loadedSelection = { key, observations };
+    renderResolvedTrailDetails(trail, observations);
+  } catch (error) {
+    if (request !== state.detailsRequest) return;
+    console.error(error);
+    elements.trailDetails.replaceChildren(node("p", "empty-state error-text", t("trailLoadError")));
+  }
+}
+
+function renderResolvedTrailDetails(trail, observations) {
+  elements.trailDetails.replaceChildren();
   const mapObservations = state.mode === "species"
     ? observations.filter(
         (observation) =>
-          state.selectedSpecies && observation.taxonId === state.selectedSpecies.taxonId,
+          state.selectedSpecies &&
+          String(observation.taxonId) === String(state.selectedSpecies.taxonId),
       )
     : observations;
-  const mappedObservationCount = setObservations(mapObservations) ?? 0;
+  renderRedlistFilters(mapObservations);
+  const visibleMapObservations = mapObservations.filter(
+    (observation) =>
+      !state.disabledRedlistCategories.has(observation.redlistCategory || "unknown"),
+  );
+  const mappedObservationCount = setObservations(visibleMapObservations) ?? 0;
   renderMapObservationSummary(trail, mappedObservationCount);
   const displayedObservations = state.mode === "species" ? mapObservations : observations;
   const taxa = groupTaxa(displayedObservations);
@@ -283,9 +382,6 @@ function renderTrailDetails() {
   osmLink.rel = "noreferrer";
   links.append(osmLink);
   header.append(links);
-  if (trail.observationLimitReached) {
-    header.append(node("p", "help-text", t("partialData")));
-  }
   elements.trailDetails.append(header);
 
   if (!taxa.length) {
@@ -304,6 +400,53 @@ function renderTrailDetails() {
       );
     }
   }
+}
+
+function renderRedlistFilters(observations) {
+  elements.redlistFilters.replaceChildren();
+  const counts = new Map();
+  observations.forEach((observation) => {
+    const category = observation.redlistCategory || "unknown";
+    counts.set(category, (counts.get(category) || 0) + 1);
+  });
+  const categories = [...counts.keys()].sort(
+    (left, right) =>
+      (REDLIST_PRIORITY[left] ?? 99) - (REDLIST_PRIORITY[right] ?? 99) ||
+      left.localeCompare(right),
+  );
+  categories.forEach((category) => {
+    const active = !state.disabledRedlistCategories.has(category);
+    const button = node("button", "redlist-filter");
+    button.type = "button";
+    button.dataset.category = category;
+    button.classList.toggle("is-disabled", !active);
+    button.setAttribute("aria-pressed", String(active));
+    button.setAttribute("aria-label", t(active ? "hideCategory" : "showCategory", {
+      category: category === "unknown" ? t("otherCategory") : category,
+      count: formatNumber(counts.get(category)),
+    }));
+    const swatch = node("i", "key-observation");
+    swatch.dataset.category = category;
+    button.append(
+      swatch,
+      node(
+        "span",
+        "",
+        `${category === "unknown" ? t("otherCategory") : category} (${formatNumber(
+          counts.get(category),
+        )})`,
+      ),
+    );
+    button.addEventListener("click", () => {
+      if (state.disabledRedlistCategories.has(category)) {
+        state.disabledRedlistCategories.delete(category);
+      } else {
+        state.disabledRedlistCategories.add(category);
+      }
+      void renderTrailDetails();
+    });
+    elements.redlistFilters.append(button);
+  });
 }
 
 function taxonRow(taxon) {
@@ -384,10 +527,12 @@ function selectTrail(trailId) {
   state.selectedTrailId = trailId;
   renderTrailResults();
   renderSpeciesResults();
-  renderTrailDetails();
+  void renderTrailDetails();
   updateMapStyles();
   fitTrail(state.catalog.trails.find((trail) => trail.id === trailId));
-  if (window.innerWidth <= 800) document.querySelector(".sidebar").scrollIntoView({ behavior: "smooth" });
+  if (window.innerWidth <= 800) {
+    document.querySelector(".sidebar").scrollIntoView({ behavior: "smooth" });
+  }
 }
 
 function setMode(mode) {
@@ -399,7 +544,7 @@ function setMode(mode) {
   });
   elements.trailPanel.hidden = mode !== "trail";
   elements.speciesPanel.hidden = mode !== "species";
-  renderTrailDetails();
+  void renderTrailDetails();
 }
 
 function bindEvents() {
@@ -438,13 +583,13 @@ function bindEvents() {
   elements.speciesSearch.addEventListener("input", () => {
     state.speciesQuery = elements.speciesSearch.value;
     renderSpeciesResults();
-    renderTrailDetails();
+    void renderTrailDetails();
   });
 }
 
-async function loadCatalog() {
-  const response = await fetch("data/catalog.json");
-  if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
+async function loadJson(path, label) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`${label} request failed: ${response.status}`);
   return response.json();
 }
 
@@ -452,8 +597,9 @@ async function start() {
   applyLanguage();
   bindEvents();
   try {
-    const [catalog] = await Promise.all([
-      loadCatalog(),
+    const [catalog, searchIndex] = await Promise.all([
+      loadJson("data/catalog.json", "Catalog"),
+      loadJson("data/search-index.json", "Search index"),
       initMap({
         onTrailClick: selectTrail,
         onObservationClick: (observation, lngLat) =>
@@ -461,6 +607,10 @@ async function start() {
       }),
     ]);
     state.catalog = catalog;
+    state.searchIndex = searchIndex;
+    state.taxonById = new Map(
+      (searchIndex.taxa || []).map((taxon) => [String(taxon.taxonId), taxon]),
+    );
     elements.dateFrom.min = state.catalog.meta.windowStart;
     elements.dateFrom.max = state.catalog.meta.windowEnd;
     elements.dateFrom.value = state.catalog.meta.windowStart;

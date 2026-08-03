@@ -55,12 +55,23 @@ class StaticSiteTests(unittest.TestCase):
         for category in ("CR", "EN", "VU", "NT", "DD", "LC"):
             self.assertIn(f'{category}: "#', map_source)
 
+    def test_frontend_loads_points_lazily_and_has_redlist_toggles(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="redlist-filters"', html)
+        self.assertIn('loadJson("data/search-index.json"', app)
+        self.assertIn("observationFilesForRange", app)
+        self.assertIn("state.partitionCache", app)
+        self.assertIn("disabledRedlistCategories", app)
+
     def test_refresh_workflow_uses_named_secret_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
             encoding="utf-8"
         )
         self.assertIn("SOS_SUBSCRIPTION_KEY: ${{ secrets.SOS_SUBSCRIPTION_KEY }}", workflow)
         self.assertIn('cron: "17 4 * * *"', workflow)
+        self.assertIn("scripts/refresh_data.py --incremental", workflow)
+        self.assertIn("data/search-index.json data/observations", workflow)
         self.assertIsNone(re.search(r"[a-f0-9]{32}", workflow, flags=re.IGNORECASE))
 
 

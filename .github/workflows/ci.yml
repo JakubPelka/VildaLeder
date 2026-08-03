@@ -28,4 +28,45 @@ jobs:
         run: python -m unittest discover -s tests -v
 
       - name: Compile refresh script
-        run: python -m py_compile scripts/refresh_data.py
+        run: python -m py_compile scripts/*.py
+
+  postgis:
+    runs-on: ubuntu-latest
+    services:
+      database:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_DB: vildaleder
+          POSTGRES_USER: vildaleder
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vildaleder -d vildaleder"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Migrate PostGIS
+        env:
+          DATABASE_URL: postgresql://vildaleder:ci-only-password@127.0.0.1:5432/vildaleder
+        run: python scripts/migrate_postgis.py
+
+      - name: Import and verify the Halmstad snapshot
+        env:
+          DATABASE_URL: postgresql://vildaleder:ci-only-password@127.0.0.1:5432/vildaleder
+        run: |
+          python scripts/import_postgis.py
+          python scripts/verify_postgis.py

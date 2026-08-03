@@ -11,4 +11,3 @@ __pycache__/
 # Raw API responses and local secrets must never be committed.
 data/raw/
 secrets/
-
