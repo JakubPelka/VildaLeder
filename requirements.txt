@@ -1,4 +1,4 @@
 pyproj>=3.6,<4
 requests>=2.31,<3
 Shapely>=2.0,<3
-
+psycopg[binary]>=3.2,<4

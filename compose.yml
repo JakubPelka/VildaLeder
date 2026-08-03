@@ -1,0 +1,22 @@
+services:
+  database:
+    image: postgis/postgis:18-3.6
+    environment:
+      POSTGRES_DB: vildaleder
+      POSTGRES_USER: vildaleder
+      POSTGRES_PASSWORD: ${VILDA_DB_PASSWORD:?Set VILDA_DB_PASSWORD in .env or the environment}
+    ports:
+      - "127.0.0.1:${VILDA_DB_PORT:-5432}:5432"
+    volumes:
+      - vildaleder_postgres:/var/lib/postgresql
+      - ./db/migrations/001_initial.sql:/docker-entrypoint-initdb.d/001_initial.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vildaleder -d vildaleder"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  vildaleder_postgres:

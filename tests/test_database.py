@@ -1,0 +1,64 @@
+import unittest
+from pathlib import Path
+
+from scripts.import_postgis import normalized_name
+from scripts.migrate_postgis import migration_files
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class PostgisContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.schema = (ROOT / "db" / "migrations" / "001_initial.sql").read_text(
+            encoding="utf-8"
+        )
+        cls.compose = (ROOT / "compose.yml").read_text(encoding="utf-8")
+
+    def test_target_is_postgis_with_private_local_binding(self):
+        self.assertIn("postgis/postgis:18-3.6", self.compose)
+        self.assertIn('127.0.0.1:${VILDA_DB_PORT:-5432}:5432', self.compose)
+        self.assertIn("CREATE EXTENSION IF NOT EXISTS postgis", self.schema)
+        self.assertNotIn("sqlite", (ROOT / "README.md").read_text(encoding="utf-8").lower())
+
+    def test_schema_normalizes_sources_taxa_names_and_observations(self):
+        for table in (
+            "data_source",
+            "taxon_external_id",
+            "taxon_name",
+            "observation",
+            "observation_source_record",
+            "spatial_feature",
+            "observation_feature",
+            "daily_feature_taxon",
+        ):
+            self.assertIn(f"CREATE TABLE {table}", self.schema)
+        self.assertIn("language_code text NOT NULL", self.schema)
+        self.assertIn("taxon_name_kind", self.schema)
+        self.assertNotIn("name_en", self.schema)
+        self.assertNotIn("name_sv", self.schema)
+        self.assertNotIn("name_pl", self.schema)
+
+    def test_schema_has_native_spatial_indexes_and_incremental_refresh_functions(self):
+        self.assertGreaterEqual(self.schema.count("USING gist"), 3)
+        self.assertIn("geometry(Point, 4326)", self.schema)
+        self.assertIn("ST_Intersects(feature.analysis_geom, observed.geom)", self.schema)
+        self.assertIn("refresh_observation_feature_matches", self.schema)
+        self.assertIn("refresh_daily_feature_taxon", self.schema)
+        self.assertIn("'trail', 'reserve'", self.schema)
+
+    def test_names_are_accent_insensitive_without_losing_stored_spelling(self):
+        self.assertEqual(normalized_name("Havsörn"), "havsorn")
+        self.assertEqual(normalized_name("Żubr europejski"), "zubr europejski")
+        self.assertEqual(normalized_name("Järv"), "jarv")
+
+    def test_numbered_migration_is_discoverable(self):
+        self.assertEqual(
+            [(version, path.name) for version, path in migration_files()],
+            [(1, "001_initial.sql")],
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

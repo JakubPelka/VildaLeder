@@ -12,20 +12,29 @@ complete only when its exit criteria are met.
 The repository now contains a working vertical slice spanning parts of phases
 0–3:
 
-- five real OSM hiking routes in Halmstads kommun;
+- all 64 named OSM hiking/foot route relations discovered in Halmstads kommun;
 - metric 200-metre corridors generated in SWEREF 99 TM;
-- 365 days of paginated, deduplicated public Artportalen/SOS observations;
+- ten years and roughly 274,000 deduplicated trail-observation matches from
+  Artportalen/SOS, with recursive date splitting beyond the 10,000-result edge;
+- lazy route/time point partitions and a daily aggregate index, so counts and
+  species rankings respond to all date presets and custom ranges without loading
+  every point at startup;
 - Red List category ordering from the SOS observation payload;
+- map-level Red List category counts, zero-category suppression, and per-class
+  visibility toggles;
 - trail-first and species-first (`havsörn` included) journeys;
 - English, Swedish, and Polish interface dictionaries;
 - day, month, quarter, year, and inclusive custom date filters;
 - browser, geometry, catalog-integrity, privacy, and static-asset checks;
+- a PostgreSQL 18/PostGIS 3.6 target schema, repeatable migrations, an idempotent
+  snapshot importer, source-aware multilingual taxon names, and integration CI;
 - CI and GitHub Pages deployment workflows.
 
 This is a functional pilot, not completion of the phases. The most important
 open gates are explicit Red List 2025 provenance, multilingual taxon names,
-administrative coverage beyond Halmstad, shareable URL state, production map
-tiles, licensing review, and scheduled refresh credentials.
+administrative coverage beyond Halmstad, nature-reserve discovery, shareable URL
+state, production map tiles, licensing review, national source ingestion, and an
+HTTPS serving API over the PostGIS store described in Phase 4.
 
 ## Delivery principles
 
@@ -223,6 +232,29 @@ services.
 
 ### Work
 
+- Introduce one normalised Sweden-wide PostgreSQL/PostGIS observation store
+  instead of copying the same source observation into every
+  overlapping trail or reserve dataset.
+- Synchronise the local observation store incrementally at least every 24 hours:
+  ingest new and changed source records, recheck a rolling correction window,
+  retain source identifiers and provenance, and run a less frequent full
+  reconciliation.
+- Keep observations, trail lines and 200-metre corridors, nature-reserve
+  boundaries, taxonomy, and administrative areas as separate spatial entities;
+  compute and version their intersections in the local data platform.
+- Ingest authoritative nature-reserve boundaries and multilingual names. Add an
+  optional reserve-name filter and a reserve-first journey: select a reserve to
+  inspect recent species and intersecting walks, or select a species to rank
+  reserves as well as trails across Sweden.
+- Materialise daily aggregates for `taxon × trail/reserve × date` so time-range
+  counts, Sweden-wide species rankings, and optional `län`/`kommun` filters do
+  not require repeated upstream API calls or browser downloads of raw points.
+- Fetch raw point evidence from the VildaLeder service only after a user selects
+  a trail, reserve, or species result; continue to expose authoritative source
+  links and data-quality context.
+- Treat permission to retain, cache, and redistribute a nationwide SOS/GBIF
+  copy as an architecture gate. Document retention limits and the policy for
+  protected, obscured, corrected, and deleted observations before backfilling.
 - Partition trails and derived data by stable geographic cells or administrative
   areas.
 - Replace large GeoJSON payloads with vector tiles, PMTiles, or another measured
@@ -249,6 +281,11 @@ services.
 - Every displayed aggregate links to a data manifest and provenance.
 - Upstream rate limiting cannot trigger an uncontrolled retry storm.
 - National data volume remains within documented hosting and cost budgets.
+- A daily incremental sync updates counts without rebuilding every trail and
+  reserve from the upstream APIs, and a failed sync leaves the last complete
+  snapshot available.
+- The same observation is stored once and can support both trail and
+  nature-reserve discovery without multiplying raw storage by overlap count.
 
 ## Phase 5 — Public web beta and PWA evaluation
 

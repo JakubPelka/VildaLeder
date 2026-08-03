@@ -384,6 +384,40 @@ label > span,
   gap: 0.45rem;
 }
 
+.redlist-filters {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.redlist-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.6rem;
+  padding: 0.1rem 0.25rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.7rem;
+  text-align: left;
+}
+
+.redlist-filter:hover {
+  background: var(--brand-soft);
+}
+
+.redlist-filter.is-disabled {
+  color: var(--muted);
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.redlist-filter.is-disabled .key-observation {
+  background: #fff;
+}
+
 .key-line {
   width: 1.4rem;
   border-top: 4px solid var(--brand);
@@ -414,6 +448,12 @@ label > span,
 .key-observation[data-category="DD"] { background: #7856a8; }
 .key-observation[data-category="LC"] { background: #3a9d5d; }
 .key-observation[data-category="NE"] { background: #718096; }
+.key-observation[data-category="NA"] { background: #a0aec0; }
+.key-observation[data-category="unknown"] { background: #52606d; }
+
+.error-text {
+  color: var(--danger);
+}
 
 .map-observation-summary {
   position: absolute;
