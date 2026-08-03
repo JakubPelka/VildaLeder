@@ -457,6 +457,14 @@ label > span,
   margin: 0.55rem 0 0;
 }
 
+.popup-description {
+  display: -webkit-box;
+  margin-top: 0.4rem;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
 .clear-place-selection {
   padding: 0;
   border: 0;
