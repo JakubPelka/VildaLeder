@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from scripts.import_postgis import normalized_name
+from scripts.import_postgis import feature_identity, normalized_name
 from scripts.migrate_postgis import migration_files
 
 
@@ -52,6 +52,17 @@ class PostgisContractTests(unittest.TestCase):
         self.assertEqual(normalized_name("Havsörn"), "havsorn")
         self.assertEqual(normalized_name("Żubr europejski"), "zubr europejski")
         self.assertEqual(normalized_name("Järv"), "jarv")
+
+    def test_snapshot_feature_identity_supports_trails_and_reserves(self):
+        self.assertEqual(feature_identity({"osmRelationId": 8_394_095}), ("osm", "8394095"))
+        self.assertEqual(
+            feature_identity({"source": "nvr", "sourceFeatureId": "2001961"}),
+            ("nvr", "2001961"),
+        )
+
+    def test_snapshot_feature_identity_rejects_missing_source_id(self):
+        with self.assertRaisesRegex(ValueError, "has no source ID"):
+            feature_identity({"id": "reserve-without-source"})
 
     def test_numbered_migration_is_discoverable(self):
         self.assertEqual(
