@@ -9,8 +9,9 @@ iOS and Android application, accounts, subscriptions, and paid features are
 possible later, after the public web MVP has demonstrated that the underlying
 data and ranking are useful.
 
-> Project status: concept and data-discovery phase. No production application
-> has been released yet.
+> Project status: functional Halland pilot. The web MVP runs locally and is
+> prepared for deployment at
+> [jakubpelka.github.io/VildaLeder](https://jakubpelka.github.io/VildaLeder/).
 
 ## Product vision
 
@@ -65,9 +66,53 @@ will be present. The interface must make that distinction clear.
 - Access: public and anonymous; no account required.
 - Delivery: responsive web application on GitHub Pages.
 
-The web MVP will focus on one representative pilot area before expanding to all
-of Sweden. Hallands län is a natural pilot candidate, but the final pilot region
-will be selected after trail completeness and API-volume measurements.
+The current pilot covers five marked routes in Halmstads kommun, Hallands län:
+Brearedssjön runt, Danska Fall, Simlången runt, Prins Bertils stig, and Orange
+stig Haverdal. It contains a generated 365-day snapshot of public Artportalen
+observations inside real 200-metre trail corridors. This is deliberately small
+enough to validate the product journeys before expanding to all of Sweden.
+
+## Try the pilot
+
+The application is a no-build static site. Serve the repository over HTTP (ES
+modules and `fetch` do not work reliably from a `file://` URL):
+
+```bash
+python3 -m http.server 8000
+```
+
+Then open <http://localhost:8000>. The interface supports English, Swedish, and
+Polish; trail-first and species-first search; county/municipality filters; map
+selection; Red List ordering; and day, 30-day, 90-day, 365-day, or custom date
+ranges within the available snapshot.
+
+### Refresh the public data snapshot
+
+Install the geospatial dependencies in a virtual environment:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+Provide the SOS subscription key through the environment and run the refresh:
+
+```bash
+SOS_SUBSCRIPTION_KEY_FILE=/absolute/path/to/specieskey.txt \
+  .venv/bin/python scripts/refresh_data.py
+```
+
+`SOS_SUBSCRIPTION_KEY` can be used instead of a file. Neither form is written to
+`data/catalog.json`; `.env*`, `secrets/`, and raw responses are ignored by Git.
+The job retrieves the selected route relations from Overpass, reconstructs their
+geometry, creates a 200-metre buffer in SWEREF 99 TM, pages through public SOS
+results, deduplicates by occurrence ID, and emits the compact browser catalog.
+
+Run the test suite with:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
 
 ## Product principles
 
@@ -111,35 +156,31 @@ flowchart LR
 
 The initial GitHub Pages application is static, but not every data operation can
 run safely in a browser. The SLU developer portal issues an API key after product
-subscription; that key must not be embedded in frontend JavaScript. The likely
-MVP pattern is therefore:
-
-- a static TypeScript web client;
-- public browser calls only where the upstream service explicitly supports
-  them;
-- scheduled or on-demand data jobs using GitHub Actions secrets;
-- small, versioned, cacheable data products consumed by the web client;
-- a thin backend or serverless API later if freshness and query variety require
-  it.
+subscription; that key must not be embedded in frontend JavaScript. The pilot
+therefore uses a static JavaScript client and a Python data job which generates a
+versioned, cacheable JSON snapshot. A scheduled GitHub Actions refresh can be
+enabled after the key is explicitly added as a repository secret. A thin backend
+or serverless API remains the likely next step when freshness and national query
+variety require it.
 
 GitHub Pages is suitable for an open prototype, but it is not the intended
 hosting platform for a future commercial SaaS or subscription backend.
 
-## Candidate technology stack
+## Implemented pilot stack
 
-The stack is intentionally provisional until the discovery milestones are
-complete.
+- Web: standards-based HTML, CSS, and JavaScript modules with no build step.
+- Map: Leaflet 1.9.4 and the standard OpenStreetMap tile service for limited MVP
+  testing only.
+- Localisation: checked-in UI dictionaries for `en`, `sv`, and `pl`.
+- Spatial processing: Python, Shapely, and pyproj; corridors are calculated in
+  SWEREF 99 TM (`EPSG:3006`) and exported as WGS84 GeoJSON.
+- Data: route relations from OSM/Overpass and public Artportalen observations
+  from SLU SOS, stored as a compact static JSON catalog.
+- Automation: Python contract tests, CI, and a GitHub Pages workflow.
 
-- Web: TypeScript, React, Vite.
-- Map: MapLibre GL JS with a production-suitable OSM-derived tile provider.
-- Localisation: i18next with checked-in locale files for `en`, `sv`, and `pl`.
-- Spatial processing: Python with GeoPandas/Shapely or an equivalent reproducible
-  geospatial pipeline; Turf.js only for lightweight client-side operations.
-- Data interchange: GeoJSON for small pilot datasets, moving to vector tiles or
-  partitioned columnar data when national volume requires it.
-- Automation: GitHub Actions for tests, data refresh, and GitHub Pages deploys.
-- Mobile later: evaluate a shared TypeScript domain layer with React Native/Expo
-  versus a dedicated MapLibre Native application.
+This deliberately low-complexity frontend proves the two core journeys. React,
+TypeScript, MapLibre, partitioned data, and a dedicated tile provider remain
+scale-up options rather than prerequisites for learning from the pilot.
 
 No basemap provider is selected yet. The public OpenStreetMap tile service is
 best-effort and has a specific usage policy; a production or offline mobile app
@@ -186,6 +227,11 @@ change, or a record needing validation. Category, assessment year, and source
 must be shown. Users will also be able to switch to recency, observation count,
 or alphabetical sorting.
 
+The pilot currently displays the category returned in
+`taxon.attributes.redlistCategory` by SOS. The search response does not provide
+the assessment year, so the UI does not claim a Red List edition. Explicit 2025
+assessment provenance remains a pre-expansion data-contract task.
+
 ### Species-to-trail ranking
 
 The first transparent baseline is the number of deduplicated observations inside
@@ -228,6 +274,13 @@ The canonical identity is a source taxon identifier, never the displayed name.
   transport are valuable future layers but are outside the first MVP.
 - All source attribution and downstream licence obligations must be visible and
   auditable before launch.
+- The snapshot is evidence of reported observations, not a probability model or
+  a promise that a species will be present.
+- The standard OpenStreetMap tile service is used only at pilot scale; it is not
+  the selected production or offline basemap.
+- Pilot common-name autocomplete is Swedish plus scientific names. English and
+  Polish taxon-name sources are not yet integrated, although the complete UI is
+  translated.
 
 ## Roadmap
 

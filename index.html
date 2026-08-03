@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Explore recent nature observations along marked trails in Sweden."
+    >
+    <title>VildaLeder</title>
+    <link rel="preconnect" href="https://unpkg.com">
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQ3ynhtHICLqWqftHfMZVmkMZewXTI="
+      crossorigin=""
+    >
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <a class="brand" href="./">VildaLeder</a>
+        <p class="tagline" data-i18n="tagline">Wildlife observations along Sweden's trails</p>
+      </div>
+      <label class="language-picker">
+        <span data-i18n="language">Language</span>
+        <select id="language" aria-label="Language">
+          <option value="en">English</option>
+          <option value="sv">Svenska</option>
+          <option value="pl">Polski</option>
+        </select>
+      </label>
+    </header>
+
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Search and results">
+        <div id="status" class="status" role="status" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span>
+          <span data-i18n="loading">Loading trails and observations…</span>
+        </div>
+
+        <div class="mode-tabs" role="tablist" aria-label="Search mode">
+          <button
+            id="trail-tab"
+            class="mode-tab is-active"
+            type="button"
+            role="tab"
+            aria-selected="true"
+            aria-controls="trail-panel"
+            data-mode="trail"
+            data-i18n="byTrail"
+          >
+            By trail
+          </button>
+          <button
+            id="species-tab"
+            class="mode-tab"
+            type="button"
+            role="tab"
+            aria-selected="false"
+            aria-controls="species-panel"
+            data-mode="species"
+            data-i18n="bySpecies"
+          >
+            By species
+          </button>
+        </div>
+
+        <section class="filter-block" aria-labelledby="area-heading">
+          <h2 id="area-heading" data-i18n="area">Area</h2>
+          <div class="two-columns">
+            <label>
+              <span data-i18n="county">County (län)</span>
+              <select id="county"></select>
+            </label>
+            <label>
+              <span data-i18n="municipality">Municipality (kommun)</span>
+              <select id="municipality"></select>
+            </label>
+          </div>
+        </section>
+
+        <section class="filter-block" aria-labelledby="period-heading">
+          <h2 id="period-heading" data-i18n="period">Observation period</h2>
+          <label>
+            <span class="sr-only" data-i18n="period">Observation period</span>
+            <select id="period">
+              <option value="day" data-i18n="oneDay">Latest day</option>
+              <option value="month" data-i18n="oneMonth">Last 30 days</option>
+              <option value="quarter" data-i18n="oneQuarter">Last 90 days</option>
+              <option value="year" data-i18n="oneYear" selected>Last 365 days</option>
+              <option value="custom" data-i18n="custom">Custom dates</option>
+            </select>
+          </label>
+          <div id="custom-dates" class="two-columns custom-dates" hidden>
+            <label>
+              <span data-i18n="from">From</span>
+              <input id="date-from" type="date">
+            </label>
+            <label>
+              <span data-i18n="to">To</span>
+              <input id="date-to" type="date">
+            </label>
+          </div>
+          <p id="snapshot-note" class="help-text"></p>
+        </section>
+
+        <section id="trail-panel" role="tabpanel" aria-labelledby="trail-tab">
+          <label class="search-label" for="trail-search" data-i18n="findTrail">Find a trail</label>
+          <input
+            id="trail-search"
+            type="search"
+            autocomplete="off"
+            data-i18n-placeholder="trailPlaceholder"
+            placeholder="Trail name"
+          >
+          <div id="trail-results" class="result-list"></div>
+        </section>
+
+        <section
+          id="species-panel"
+          role="tabpanel"
+          aria-labelledby="species-tab"
+          hidden
+        >
+          <label class="search-label" for="species-search" data-i18n="findSpecies">
+            Find a species
+          </label>
+          <input
+            id="species-search"
+            type="search"
+            list="species-suggestions"
+            autocomplete="off"
+            data-i18n-placeholder="speciesPlaceholder"
+            placeholder="Havsörn or Haliaeetus albicilla"
+          >
+          <datalist id="species-suggestions"></datalist>
+          <p class="help-text" data-i18n="speciesLanguageNote">
+            Pilot species names are Swedish and scientific; multilingual taxonomy follows later.
+          </p>
+          <div id="species-summary" class="selection-summary"></div>
+          <div id="species-results" class="result-list"></div>
+        </section>
+
+        <section id="trail-details" class="details" aria-live="polite"></section>
+      </aside>
+
+      <section class="map-panel" aria-label="Trail map">
+        <div id="map"></div>
+        <div class="map-key" aria-hidden="true">
+          <span><i class="key-line"></i><span data-i18n="trail">Trail</span></span>
+          <span><i class="key-corridor"></i><span data-i18n="corridor">200 m corridor</span></span>
+          <span><i class="key-observation"></i><span data-i18n="observation">Observation</span></span>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span data-i18n="dataSources">Data:</span>
+      <a href="https://www.openstreetmap.org/copyright" rel="noreferrer">© OpenStreetMap contributors</a>
+      ·
+      <a href="https://www.slu.se/artdatabanken/" rel="noreferrer">SLU Artdatabanken / Artportalen</a>
+      ·
+      <a href="https://github.com/JakubPelka/VildaLeder" rel="noreferrer">GitHub</a>
+    </footer>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>
+
