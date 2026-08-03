@@ -11,9 +11,20 @@ from scripts.sync_skandobs import (
     search_payload,
     year_windows,
 )
+from scripts.import_skandobs import spatial_feature_identity
 
 
 class SkandobsAdapterTests(unittest.TestCase):
+    def test_postgis_feature_identity_supports_nvv_destinations(self):
+        self.assertEqual(
+            spatial_feature_identity("nvl-led-30380768"),
+            ("nvl", "led-30380768"),
+        )
+        self.assertEqual(
+            spatial_feature_identity("nvl-site-30500401"),
+            ("nvl", "site-30500401"),
+        )
+
     def test_search_is_anonymous_halland_and_date_bounded(self):
         payload = search_payload(date(2025, 8, 4), date(2026, 8, 3))
         criteria = payload["searchCriteria"]["searchCriteria"][0]

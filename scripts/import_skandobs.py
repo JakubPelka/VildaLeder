@@ -111,10 +111,15 @@ def upsert_taxa(
     return result
 
 
-def feature_database_id(connection: psycopg.Connection[Any], public_id: str) -> int:
+def spatial_feature_identity(public_id: str) -> tuple[str, str]:
     source_key, separator, source_feature_id = public_id.partition("-")
-    if not separator or source_key not in {"osm", "nvr"}:
+    if not separator or source_key not in {"osm", "nvr", "nvl"} or not source_feature_id:
         raise RuntimeError(f"Unsupported public feature ID: {public_id}")
+    return source_key, source_feature_id
+
+
+def feature_database_id(connection: psycopg.Connection[Any], public_id: str) -> int:
+    source_key, source_feature_id = spatial_feature_identity(public_id)
     row = connection.execute(
         """SELECT feature.feature_id
            FROM vildaleder.spatial_feature feature
