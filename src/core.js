@@ -162,12 +162,21 @@ export function resolveSpecies(catalog, query) {
   const needle = normalize(query).replace(/\s+—\s+.*/, "");
   if (!needle) return null;
   const exact = catalog.find((species) => {
-    const values = [species.vernacularName, species.scientificName, speciesLabel(species)];
+    const values = [
+      species.vernacularName,
+      species.scientificName,
+      speciesLabel(species),
+      ...Object.values(species.vernacularNames || {}),
+    ];
     return values.some((value) => normalize(value) === normalize(query) || normalize(value) === needle);
   });
   if (exact) return exact;
   const matches = catalog.filter((species) =>
-    [species.vernacularName, species.scientificName]
+    [
+      species.vernacularName,
+      species.scientificName,
+      ...Object.values(species.vernacularNames || {}),
+    ]
       .map(normalize)
       .some((value) => value.includes(needle)),
   );

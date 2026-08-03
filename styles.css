@@ -428,6 +428,45 @@ label > span,
   font-size: 0.7rem;
 }
 
+.locate-user {
+  position: absolute;
+  z-index: 4;
+  top: 5.6rem;
+  left: 0.65rem;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.65rem;
+  border: 2px solid rgb(0 0 0 / 12%);
+  border-radius: 0.35rem;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.locate-user:hover,
+.locate-user.is-active {
+  background: #e8f2ff;
+  color: #155da8;
+}
+
+.location-status {
+  position: absolute;
+  z-index: 4;
+  top: 8.2rem;
+  left: 0.65rem;
+  max-width: 15rem;
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: var(--shadow);
+  color: var(--danger);
+  font-size: 0.72rem;
+}
+
 .map-key strong {
   margin-top: 0.2rem;
   color: var(--ink);

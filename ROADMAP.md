@@ -21,6 +21,9 @@ The repository now contains a working vertical slice spanning parts of phases
 - metric 200-metre corridors generated in SWEREF 99 TM;
 - ten years and roughly 274,000 deduplicated trail-observation matches from
   Artportalen/SOS, with recursive date splitting beyond the 10,000-result edge;
+- an experimental ten-year Halland Skandobs adapter: 672 public predator reports
+  checked, 74 public wolf/lynx reports retained, and 90 trail/reserve matches,
+  with a strict public-field whitelist and graceful stale-snapshot fallback;
 - lazy route/time point partitions and a daily aggregate index, so counts and
   species rankings respond to all date presets and custom ranges without loading
   every point at startup;
@@ -34,6 +37,9 @@ The repository now contains a working vertical slice spanning parts of phases
 - a place-type filter and a full reset control for filters, searches, selected
   feature, dates, Red List toggles, and map extent;
 - day, month, quarter, year, and inclusive custom date filters;
+- custom date controls that remain hidden until selected and automatically
+  activate the custom preset when either boundary changes;
+- opt-in map geolocation with an accuracy area and two-second marker refresh;
 - browser, geometry, catalog-integrity, privacy, and static-asset checks;
 - a PostgreSQL 18/PostGIS 3.6 target schema, repeatable migrations, an idempotent
   snapshot importer, source-aware multilingual taxon names, and integration CI;
@@ -98,10 +104,11 @@ taxonomy, and conservation status can be joined legally and reproducibly.
 - Define a sensitive-species policy using only public, source-approved geometry.
 - Make the UI explain that protected records may be withheld or spatially
   generalised and that absence of public points is not evidence of absence.
-- Evaluate Skandobs/Rovbase as an additional large-carnivore evidence source.
-  A technical anonymous API exists, but production ingestion is blocked until
-  its stability, attribution, caching, and redistribution terms are confirmed
-  with the service owner.
+- Run Skandobs as a clearly labelled experimental large-carnivore evidence
+  source through its anonymous web API. Keep the adapter isolated, retain the
+  last good snapshot on failure, store no personal response fields, and treat
+  written stability, attribution, caching, and redistribution terms as a gate
+  for dependable commercial use rather than for the open pilot experiment.
 - Decide whether the 200-metre corridor is fixed, configurable, or adjusted by
   source coordinate uncertainty.
 
@@ -429,7 +436,7 @@ functionality, reliability, convenience, and operations.
 | GBIF and SOS overlap or disagree | Preserve source IDs, deduplicate conservatively, display provenance |
 | Observation counts mostly measure observer effort | Show raw inputs, per-km and distinct-date context, avoid probability claims |
 | Sensitive observations could attract disturbance | Use public/source-approved geometry only; suppress or generalise presentation when required |
-| Skandobs exposes a web API without a clear public integration contract | Keep it disabled by default; obtain written API and redistribution terms before ingestion |
+| Skandobs exposes a web API without a clear public integration contract | Keep ingestion best-effort and source-isolated, retain the last good snapshot, export only a privacy whitelist, and obtain written terms before dependable commercial use |
 | Red List versions or taxon concepts change | Store assessment year and source taxon ID; version mappings and invalidate caches |
 | Multilingual common-name coverage is incomplete | Scientific-name fallback and curated, source-labelled alias catalogue |
 | Static hosting/data limits are exceeded | Geographic partitioning, compact formats, measured budgets, planned hosting migration |

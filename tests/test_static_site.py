@@ -74,11 +74,29 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn('value="reserve"', html)
         self.assertIn('id="reset-filters"', html)
         self.assertIn('loadJson("data/features.json"', app)
+        self.assertIn('loadJson("data/skandobs.json"', app)
         self.assertIn("trail.municipalities", core)
         self.assertIn('LAYER_RESERVES = "nature-reserves-fill"', map_source)
         self.assertGreaterEqual(translations.count("maximumRangeNote"), 3)
         self.assertGreaterEqual(translations.count("sensitiveSpeciesNote"), 3)
         self.assertGreaterEqual(translations.count("resetFilters"), 3)
+
+    def test_custom_dates_location_tracking_and_skandobs_are_wired(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        map_source = (ROOT / "src" / "map.js").read_text(encoding="utf-8")
+        workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('id="custom-dates" class="two-columns custom-dates" hidden', html)
+        self.assertGreaterEqual(app.count("activateCustomPeriod();"), 2)
+        self.assertIn('id="locate-user"', html)
+        self.assertIn("LOCATION_REFRESH_MS = 2_000", app)
+        self.assertIn("navigator.geolocation.getCurrentPosition", app)
+        self.assertIn("setUserLocation", map_source)
+        self.assertIn('SOURCE_USER_LOCATION = "user-location"', map_source)
+        self.assertIn("scripts/sync_skandobs.py", workflow)
+        self.assertIn("continue-on-error: true", workflow)
 
     def test_map_clusters_overlapping_points_and_observation_table_tracks_viewport(self):
         html = (ROOT / "index.html").read_text(encoding="utf-8")
@@ -103,6 +121,7 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn('cron: "17 4 * * *"', workflow)
         self.assertIn("scripts/refresh_data.py --incremental", workflow)
         self.assertIn("data/search-index.json data/observations", workflow)
+        self.assertIn("data/skandobs.json", workflow)
         self.assertIsNone(re.search(r"[a-f0-9]{32}", workflow, flags=re.IGNORECASE))
 
 

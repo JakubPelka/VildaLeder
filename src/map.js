@@ -1,6 +1,7 @@
 const SOURCE_CORRIDORS = "trail-corridors";
 const SOURCE_TRAILS = "trails";
 const SOURCE_OBSERVATIONS = "observations";
+const SOURCE_USER_LOCATION = "user-location";
 const LAYER_CORRIDORS = "trail-corridors-fill";
 const LAYER_CORRIDOR_OUTLINES = "trail-corridors-outline";
 const LAYER_RESERVES = "nature-reserves-fill";
@@ -8,6 +9,8 @@ const LAYER_TRAILS = "trails-line";
 const LAYER_OBSERVATION_CLUSTERS = "observations-clusters";
 const LAYER_OBSERVATION_CLUSTER_COUNT = "observations-cluster-count";
 const LAYER_OBSERVATIONS = "observations-circle";
+const LAYER_USER_ACCURACY = "user-location-accuracy";
+const LAYER_USER_LOCATION = "user-location-point";
 
 export const REDLIST_COLORS = Object.freeze({
   EX: "#3f0b0b",
@@ -92,6 +95,7 @@ function disableRotation() {
 }
 
 function addDataLayers() {
+  map.addSource(SOURCE_USER_LOCATION, { type: "geojson", data: emptyFeatureCollection() });
   map.addSource(SOURCE_CORRIDORS, { type: "geojson", data: emptyFeatureCollection() });
   map.addSource(SOURCE_TRAILS, { type: "geojson", data: emptyFeatureCollection() });
   map.addSource(SOURCE_OBSERVATIONS, {
@@ -102,6 +106,18 @@ function addDataLayers() {
     clusterRadius: 44,
     clusterMaxZoom: 20,
     maxzoom: 21,
+  });
+
+  map.addLayer({
+    id: LAYER_USER_ACCURACY,
+    type: "fill",
+    source: SOURCE_USER_LOCATION,
+    filter: ["==", ["geometry-type"], "Polygon"],
+    paint: {
+      "fill-color": "#2475d0",
+      "fill-opacity": 0.14,
+      "fill-outline-color": "#2475d0",
+    },
   });
 
   map.addLayer({
@@ -233,6 +249,18 @@ function addDataLayers() {
       "circle-opacity": 0.88,
       "circle-stroke-color": "#ffffff",
       "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 7, 0.5, 13, 1.4],
+    },
+  });
+  map.addLayer({
+    id: LAYER_USER_LOCATION,
+    type: "circle",
+    source: SOURCE_USER_LOCATION,
+    filter: ["==", ["geometry-type"], "Point"],
+    paint: {
+      "circle-color": "#2475d0",
+      "circle-radius": 7,
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-width": 3,
     },
   });
 }
@@ -372,6 +400,50 @@ export function focusObservation(observation) {
   });
 }
 
+function accuracyPolygon(longitude, latitude, accuracyMeters) {
+  const radius = Math.max(1, Number(accuracyMeters) || 1);
+  const latitudeScale = radius / 110_540;
+  const longitudeScale = radius / (111_320 * Math.max(0.2, Math.cos((latitude * Math.PI) / 180)));
+  const coordinates = [];
+  for (let step = 0; step <= 48; step += 1) {
+    const angle = (step / 48) * Math.PI * 2;
+    coordinates.push([
+      longitude + Math.cos(angle) * longitudeScale,
+      latitude + Math.sin(angle) * latitudeScale,
+    ]);
+  }
+  return { type: "Polygon", coordinates: [coordinates] };
+}
+
+export function setUserLocation(position, focus = false) {
+  if (!mapReady || !map) return;
+  const longitude = Number(position?.longitude);
+  const latitude = Number(position?.latitude);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return;
+  const point = {
+    type: "Feature",
+    properties: { kind: "position" },
+    geometry: { type: "Point", coordinates: [longitude, latitude] },
+  };
+  const accuracy = {
+    type: "Feature",
+    properties: { kind: "accuracy", accuracyMeters: Number(position.accuracy) || 0 },
+    geometry: accuracyPolygon(longitude, latitude, position.accuracy),
+  };
+  map.getSource(SOURCE_USER_LOCATION).setData({
+    type: "FeatureCollection",
+    features: [accuracy, point],
+  });
+  if (focus) {
+    map.easeTo({ center: [longitude, latitude], zoom: Math.max(map.getZoom(), 15) });
+  }
+}
+
+export function clearUserLocation() {
+  if (!mapReady || !map) return;
+  map.getSource(SOURCE_USER_LOCATION).setData(emptyFeatureCollection());
+}
+
 export function showObservationPopup(observation, lngLat, content) {
   activePopup?.remove();
   activePopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "300px" })
@@ -440,6 +512,10 @@ export function refreshMapSize() {
 export function getMapDebugState() {
   const firstObservationPoint = findClickableObservationPoint();
   const renderedClusters = renderedClusterDebug();
+  const userLocationData = mapReady ? map.getSource(SOURCE_USER_LOCATION)._data : null;
+  const userLocationPoint = userLocationData?.features?.find(
+    (feature) => feature.geometry?.type === "Point",
+  );
   return {
     loaded: mapReady,
     tilesLoaded: map ? map.areTilesLoaded() : false,
@@ -463,6 +539,8 @@ export function getMapDebugState() {
       : 0,
     center: map ? map.getCenter().toArray() : null,
     zoom: map ? map.getZoom() : null,
+    userLocationFeatures: userLocationData?.features?.length || 0,
+    userLocation: userLocationPoint?.geometry?.coordinates || null,
   };
 }
 

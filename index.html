@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260803-halland-reserves-v1">
+    <link rel="stylesheet" href="styles.css?v=20260803-skandobs-location-v1">
   </head>
   <body>
     <header class="app-header">
@@ -161,6 +161,10 @@
       <section class="map-panel" aria-label="Trail and nature reserve map">
         <div class="map-stage">
           <div id="map"></div>
+          <button id="locate-user" class="locate-user" type="button" aria-pressed="false">
+            <span data-i18n="showMyLocation">Show my location</span>
+          </button>
+          <p id="location-status" class="location-status" role="status" aria-live="polite" hidden></p>
           <p id="map-observation-summary" class="map-observation-summary" data-count="0" data-i18n="mapSelectTrail">
             Select a trail to show observations on the map.
           </p>
@@ -209,10 +213,12 @@
       ·
       <a href="https://skyddadnatur.naturvardsverket.se/" rel="noreferrer">Naturvårdsverket / Naturvårdsregistret</a>
       ·
+      <a href="https://www.skandobs.se/" rel="noreferrer">Skandobs</a>
+      ·
       <a href="https://github.com/JakubPelka/VildaLeder" rel="noreferrer">GitHub</a>
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260803-halland-reserves-v1"></script>
+    <script type="module" src="src/app.js?v=20260803-skandobs-location-v1"></script>
   </body>
 </html>

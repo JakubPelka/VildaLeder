@@ -14,21 +14,26 @@ import {
 } from "./core.js";
 import { translations, translator } from "./i18n.js";
 import {
+  clearUserLocation,
   fitAllTrails,
   fitTrail,
   focusObservation,
   initMap,
   setObservations,
   setTrails,
+  setUserLocation,
   showObservationPopup,
 } from "./map.js";
 
 const MAX_TAXA_SHOWN = 100;
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
+const LOCATION_REFRESH_MS = 2_000;
 
 const state = {
   catalog: null,
   searchIndex: null,
+  skandobs: null,
+  skandobsRecordById: new Map(),
   taxonById: new Map(),
   partitionCache: new Map(),
   loadedSelection: null,
@@ -48,10 +53,16 @@ const state = {
   speciesQuery: "",
   selectedSpecies: null,
   selectedTrailId: null,
+  locationTracking: false,
+  locationRequestPending: false,
+  locationHasFix: false,
+  locationTimer: null,
 };
 
 const elements = {
   status: document.querySelector("#status"),
+  locateUser: document.querySelector("#locate-user"),
+  locationStatus: document.querySelector("#location-status"),
   resetFilters: document.querySelector("#reset-filters"),
   language: document.querySelector("#language"),
   featureKind: document.querySelector("#feature-kind"),
@@ -133,6 +144,18 @@ function areaTrails(query = "") {
   });
 }
 
+function localizedSpecies(species) {
+  return {
+    ...species,
+    vernacularName:
+      species?.vernacularNames?.[state.language] || species?.vernacularName,
+  };
+}
+
+function localizedSpeciesLabel(species) {
+  return speciesLabel(localizedSpecies(species));
+}
+
 function applyLanguage() {
   document.documentElement.lang = state.language;
   document.title = `VildaLeder — ${t("tagline")}`;
@@ -143,6 +166,7 @@ function applyLanguage() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
     element.placeholder = t(element.dataset.i18nPlaceholder);
   });
+  updateLocationButton();
   if (state.catalog) renderAll();
 }
 
@@ -192,9 +216,17 @@ function fillSelect(select, values, emptyLabel, selected) {
 function populateSpeciesSuggestions() {
   elements.speciesSuggestions.replaceChildren();
   speciesCatalog(state.searchIndex).forEach((species) => {
-    const option = document.createElement("option");
-    option.value = speciesLabel(species);
-    elements.speciesSuggestions.append(option);
+    const labels = new Set([
+      localizedSpeciesLabel(species),
+      ...Object.values(species.vernacularNames || {}).map((name) =>
+        species.scientificName ? `${name} — ${species.scientificName}` : name,
+      ),
+    ]);
+    labels.forEach((label) => {
+      const option = document.createElement("option");
+      option.value = label;
+      elements.speciesSuggestions.append(option);
+    });
   });
 }
 
@@ -241,7 +273,7 @@ function renderTrailResults() {
     const evidence = trail.observationCoverage
       ? `${t("observations", { count: formatNumber(stats.observations) })} · ${t("species", {
           count: formatNumber(stats.species),
-        })}`
+        })}${trail.fullObservationCoverage ? "" : ` · ${t("skandobsOnly")}`}`
       : t("observationSyncPending");
     button.append(node("span", "result-meta", `${dimension} · ${evidence}`));
     button.addEventListener("click", () => selectTrail(trail.id));
@@ -264,7 +296,7 @@ function renderSpeciesResults() {
     return;
   }
   elements.speciesSummary.textContent = t("rankedFor", {
-    species: speciesLabel(state.selectedSpecies),
+    species: localizedSpeciesLabel(state.selectedSpecies),
   });
   const rankings = rankTrailsForSpecies(
     areaTrails(),
@@ -341,10 +373,41 @@ function expandObservation(record) {
 async function loadTrailObservations(trail, range) {
   const files = observationFilesForRange(trail, range);
   const partitions = await Promise.all(files.map(loadPartition));
+  const skandobsIds = state.skandobs?.matches?.[trail.id] || [];
+  const skandobsObservations = skandobsIds
+    .map((observationId) => state.skandobsRecordById.get(observationId))
+    .filter(Boolean)
+    .map(expandSkandobsObservation);
   return filterObservations(
-    partitions.flatMap((partition) => (partition.records || []).map(expandObservation)),
+    [
+      ...partitions.flatMap((partition) => (partition.records || []).map(expandObservation)),
+      ...skandobsObservations,
+    ],
     range,
   );
+}
+
+function expandSkandobsObservation(record) {
+  const taxon = localizedSpecies(state.taxonById.get(String(record.taxonId)) || {});
+  return {
+    id: `skandobs:${record.id}`,
+    date: record.date,
+    taxonId: record.taxonId,
+    scientificName: taxon.scientificName,
+    vernacularName: taxon.vernacularName,
+    organismGroup: taxon.organismGroup,
+    redlistCategory: taxon.redlistCategory,
+    individualCount: record.individualCount,
+    verified: Number(record.validationId) === 5,
+    uncertainIdentification: Number(record.validationId) < 0,
+    validationStatus: record.validationStatus,
+    activity: record.activity,
+    latitude: Number(record.latitude),
+    longitude: Number(record.longitude),
+    locationIsGeneralized: Boolean(record.locationIsGeneralized),
+    sourceUrl: record.sourceUrl,
+    dataset: "Skandobs",
+  };
 }
 
 async function renderTrailDetails() {
@@ -437,20 +500,27 @@ function renderResolvedTrailDetails(trail, observations) {
 
   if (!trail.observationCoverage) {
     elements.trailDetails.append(node("p", "data-caveat", t("observationCoverageNote")));
-  } else if (!taxa.length) {
-    elements.trailDetails.append(node("p", "empty-state", t("noObservations")));
   } else {
-    const list = node("div", "taxon-list");
-    taxa.slice(0, MAX_TAXA_SHOWN).forEach((taxon) => list.append(taxonRow(taxon)));
-    elements.trailDetails.append(list);
-    if (taxa.length > MAX_TAXA_SHOWN) {
+    if (!trail.fullObservationCoverage) {
       elements.trailDetails.append(
-        node(
-          "p",
-          "help-text",
-          t("moreSpecies", { shown: MAX_TAXA_SHOWN, total: formatNumber(taxa.length) }),
-        ),
+        node("p", "data-caveat", t("partialObservationCoverageNote")),
       );
+    }
+    if (!taxa.length) {
+      elements.trailDetails.append(node("p", "empty-state", t("noObservations")));
+    } else {
+      const list = node("div", "taxon-list");
+      taxa.slice(0, MAX_TAXA_SHOWN).forEach((taxon) => list.append(taxonRow(taxon)));
+      elements.trailDetails.append(list);
+      if (taxa.length > MAX_TAXA_SHOWN) {
+        elements.trailDetails.append(
+          node(
+            "p",
+            "help-text",
+            t("moreSpecies", { shown: MAX_TAXA_SHOWN, total: formatNumber(taxa.length) }),
+          ),
+        );
+      }
     }
   }
 }
@@ -660,7 +730,7 @@ function renderMapObservationSummary(trail, count) {
   if (state.mode === "species" && state.selectedSpecies) {
     elements.mapObservationSummary.textContent = t("mapSpeciesPoints", {
       count: formatNumber(count),
-      species: speciesLabel(state.selectedSpecies),
+      species: localizedSpeciesLabel(state.selectedSpecies),
       trail: trail.name,
     });
     return;
@@ -692,6 +762,8 @@ function observationPopup(observation) {
   const parts = [formatDate(observation.date)];
   if (observation.redlistCategory) parts.push(observation.redlistCategory);
   if (observation.uncertaintyMeters) parts.push(`±${observation.uncertaintyMeters} m`);
+  if (observation.locationIsGeneralized) parts.push(t("generalizedLocation"));
+  if (observation.validationStatus) parts.push(observation.validationStatus);
   wrapper.append(node("div", "popup-meta", parts.join(" · ")));
   if (observation.sourceUrl) {
     const link = node("a", "", t("openObservation"));
@@ -756,6 +828,83 @@ function resetFilters() {
   fitAllTrails(areaTrails());
 }
 
+function activateCustomPeriod() {
+  state.period = "custom";
+  elements.period.value = "custom";
+  elements.customDates.hidden = false;
+}
+
+function updateLocationButton() {
+  if (!elements.locateUser) return;
+  const key = state.locationTracking ? "stopLocationTracking" : "showMyLocation";
+  elements.locateUser.setAttribute("aria-label", t(key));
+  elements.locateUser.setAttribute("title", t(key));
+  elements.locateUser.setAttribute("aria-pressed", String(state.locationTracking));
+  elements.locateUser.classList.toggle("is-active", state.locationTracking);
+  const label = elements.locateUser.querySelector("span");
+  if (label) label.textContent = t(key);
+}
+
+function setLocationMessage(key = "") {
+  elements.locationStatus.hidden = !key;
+  elements.locationStatus.textContent = key ? t(key) : "";
+}
+
+function stopLocationTracking({ clear = true } = {}) {
+  state.locationTracking = false;
+  state.locationRequestPending = false;
+  state.locationHasFix = false;
+  window.clearInterval(state.locationTimer);
+  state.locationTimer = null;
+  if (clear) clearUserLocation();
+  setLocationMessage();
+  updateLocationButton();
+}
+
+function requestUserLocation() {
+  if (!state.locationTracking || state.locationRequestPending) return;
+  state.locationRequestPending = true;
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      state.locationRequestPending = false;
+      if (!state.locationTracking) return;
+      setUserLocation(
+        {
+          longitude: position.coords.longitude,
+          latitude: position.coords.latitude,
+          accuracy: position.coords.accuracy,
+        },
+        !state.locationHasFix,
+      );
+      state.locationHasFix = true;
+      setLocationMessage();
+    },
+    (error) => {
+      console.warn("Geolocation failed", error);
+      stopLocationTracking();
+      setLocationMessage(error?.code === 1 ? "locationDenied" : "locationUnavailable");
+    },
+    { enableHighAccuracy: true, maximumAge: 1_000, timeout: 10_000 },
+  );
+}
+
+function toggleLocationTracking() {
+  if (state.locationTracking) {
+    stopLocationTracking();
+    return;
+  }
+  if (!navigator.geolocation) {
+    setLocationMessage("locationUnsupported");
+    return;
+  }
+  state.locationTracking = true;
+  state.locationHasFix = false;
+  setLocationMessage("locationWaiting");
+  updateLocationButton();
+  requestUserLocation();
+  state.locationTimer = window.setInterval(requestUserLocation, LOCATION_REFRESH_MS);
+}
+
 function setMode(mode) {
   state.mode = mode;
   elements.modeTabs.forEach((tab) => {
@@ -772,8 +921,10 @@ function bindEvents() {
   elements.language.addEventListener("change", () => {
     state.language = elements.language.value;
     localStorage.setItem("vildaleder-language", state.language);
+    state.loadedSelection = null;
     applyLanguage();
   });
+  elements.locateUser.addEventListener("click", toggleLocationTracking);
   elements.resetFilters.addEventListener("click", resetFilters);
   elements.modeTabs.forEach((tab) => tab.addEventListener("click", () => setMode(tab.dataset.mode)));
   elements.featureKind.addEventListener("change", () => {
@@ -796,10 +947,12 @@ function bindEvents() {
     renderAll();
   });
   elements.dateFrom.addEventListener("change", () => {
+    activateCustomPeriod();
     state.customStart = elements.dateFrom.value;
     renderAll();
   });
   elements.dateTo.addEventListener("change", () => {
+    activateCustomPeriod();
     state.customEnd = elements.dateTo.value;
     renderAll();
   });
@@ -826,6 +979,8 @@ function mergedCatalog(observationCatalog, featureCatalog) {
   );
   const features = featureCatalog.features.map((feature) => {
     const observationFeature = observationsByFeature.get(feature.id) || {};
+    const skandobsMatchCount = state.skandobs?.matches?.[feature.id]?.length || 0;
+    const fullObservationCoverage = Boolean(observationFeature.id);
     return {
       ...feature,
       ...observationFeature,
@@ -838,7 +993,9 @@ function mergedCatalog(observationCatalog, featureCatalog) {
       areaHa: feature.areaHa,
       observationFiles: observationFeature.observationFiles || [],
       observationTotal: observationFeature.observationTotal || 0,
-      observationCoverage: Boolean(observationFeature.id),
+      fullObservationCoverage,
+      skandobsMatchCount,
+      observationCoverage: fullObservationCoverage || skandobsMatchCount > 0,
     };
   });
   return {
@@ -848,14 +1005,35 @@ function mergedCatalog(observationCatalog, featureCatalog) {
   };
 }
 
+function mergeDated(left = [], right = []) {
+  const counts = new Map();
+  [...left, ...right].forEach(([day, count]) =>
+    counts.set(day, (counts.get(day) || 0) + Number(count || 0)),
+  );
+  return [...counts].sort(([leftDay], [rightDay]) => leftDay.localeCompare(rightDay));
+}
+
+function mergedSearchIndex(primary, additional) {
+  const trails = { ...primary.trails };
+  Object.entries(additional.trails || {}).forEach(([featureId, values]) => {
+    trails[featureId] = mergeDated(trails[featureId], values);
+  });
+  return {
+    ...primary,
+    trails,
+    taxa: [...(primary.taxa || []), ...(additional.taxa || [])],
+  };
+}
+
 async function start() {
   applyLanguage();
   bindEvents();
   try {
-    const [observationCatalog, featureCatalog, searchIndex] = await Promise.all([
+    const [observationCatalog, featureCatalog, searchIndex, skandobs] = await Promise.all([
       loadJson("data/catalog.json", "Catalog"),
       loadJson("data/features.json", "Feature catalog"),
       loadJson("data/search-index.json", "Search index"),
+      loadJson("data/skandobs.json", "Skandobs snapshot"),
       initMap({
         onTrailClick: selectTrail,
         onObservationClick: (observation, lngLat) =>
@@ -863,8 +1041,12 @@ async function start() {
         onViewportChange: handleViewportChange,
       }),
     ]);
+    state.skandobs = skandobs;
+    state.skandobsRecordById = new Map(
+      (skandobs.records || []).map((record) => [record.id, record]),
+    );
     state.catalog = mergedCatalog(observationCatalog, featureCatalog);
-    state.searchIndex = searchIndex;
+    state.searchIndex = mergedSearchIndex(searchIndex, skandobs);
     state.taxonById = new Map(
       (searchIndex.taxa || []).map((taxon) => [String(taxon.taxonId), taxon]),
     );

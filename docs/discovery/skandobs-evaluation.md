@@ -4,8 +4,8 @@ Checked: 2026-08-03
 
 ## Finding
 
-Skandobs is technically queryable, but it is not yet approved as a VildaLeder
-production source.
+Skandobs is now enabled as an experimental, best-effort source for the open
+VildaLeder pilot. It is not treated as a dependable commercial source.
 
 The current web client calls an ASP.NET Web API at
 `https://www.skandobs.no/skandobsAPI/`. Its published help index exposes an
@@ -21,7 +21,28 @@ form exposes bear, lynx, wolverine, and wolf; SLU's service description also
 describes Skandobs reporting for golden eagle, so species coverage must be
 confirmed rather than inferred from one client version.
 
-## Blockers before ingestion
+The first complete Halland run over the maximum ten-year VildaLeder window
+examined 672 public reports. Seventy-four public wolf/lynx observations fell
+inside at least one trail corridor or buffered reserve, producing 90 feature
+matches across 55 places. The checked snapshot was generated on 2026-08-03.
+
+## Adapter policy
+
+- Requests are anonymous, bounded by Halland and non-overlapping date windows,
+  and recursively split if the map-result cap is reached.
+- Lightweight map results are spatially filtered first; full details are
+  requested only for candidate observations near a feature.
+- The detail endpoint exposes reporter/contact data and validator identities.
+  VildaLeder uses an explicit public whitelist and stores none of those fields,
+  comments, or validation comments.
+- Only the public coordinates supplied by Skandobs are used. Generalisation is
+  retained, and VildaLeder never combines data to reconstruct hidden precision.
+- Validation status remains attached to the observation and visible in its map
+  popup; a report is not silently presented as a confirmed inventory result.
+- Refresh output is atomic. API failure keeps the previous good snapshot, and
+  the daily workflow continues refreshing the independent sources.
+
+## Remaining limitations
 
 - The help page contains machine-oriented endpoint details but no general API
   contract, versioning policy, quota, availability promise, or support status
@@ -36,9 +57,11 @@ confirmed rather than inferred from one client version.
 - Cross-source deduplication with Artportalen/SOS or Rovbase needs stable source
   identifiers and conservative rules.
 
-## Recommended decision
+## Decision and follow-up
 
-Keep the adapter disabled. Ask the service owner to confirm in writing:
+Use the adapter for open-MVP learning, accepting that it may break. Before
+depending on it for a commercial or availability-sensitive product, ask the
+service owner to confirm in writing:
 
 1. whether this endpoint is supported for automated third-party read access;
 2. rate limits and the preferred incremental-sync method;
