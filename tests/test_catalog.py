@@ -14,6 +14,10 @@ class CatalogTests(unittest.TestCase):
     def setUpClass(cls):
         cls.catalog = json.loads((ROOT / "data" / "catalog.json").read_text(encoding="utf-8"))
         cls.index = json.loads((ROOT / "data" / "search-index.json").read_text(encoding="utf-8"))
+        feature_catalog = json.loads(
+            (ROOT / "data" / "features.json").read_text(encoding="utf-8")
+        )
+        cls.feature_ids = {feature["id"] for feature in feature_catalog["features"]}
 
     def partition_records(self, trail):
         for manifest in trail["observationFiles"]:
@@ -28,13 +32,24 @@ class CatalogTests(unittest.TestCase):
         features = self.catalog["trails"]
         trails = [feature for feature in features if feature["featureKind"] == "trail"]
         reserves = [feature for feature in features if feature["featureKind"] == "reserve"]
+        destinations = [
+            feature
+            for feature in features
+            if feature["featureKind"]
+            in {"bird_hide", "observation_tower", "observation_site"}
+        ]
         self.assertEqual(self.catalog["schemaVersion"], 2)
-        self.assertEqual(len(features), 388)
-        self.assertEqual(len(trails), 175)
-        self.assertEqual(len(reserves), 213)
+        self.assertEqual({feature["id"] for feature in features}, self.feature_ids)
+        self.assertGreaterEqual(len(trails), 300)
+        self.assertGreaterEqual(len(reserves), 210)
+        self.assertGreaterEqual(len(destinations), 10)
         self.assertTrue(
             {8_394_095, 8_394_110, 8_394_180, 9_158_828, 13_262_342}.issubset(
-                {trail["osmRelationId"] for trail in trails}
+                {
+                    trail["osmRelationId"]
+                    for trail in trails
+                    if "osmRelationId" in trail
+                }
             )
         )
         self.assertTrue(
@@ -44,7 +59,7 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(feature["county"], "Halland")
             if feature["featureKind"] == "trail":
                 self.assertGreater(feature["lengthKm"], 0)
-            else:
+            elif feature["featureKind"] in {"reserve", "national_park"}:
                 self.assertGreater(feature["areaHa"], 0)
             self.assertFalse(shape(feature["geometry"]).is_empty)
             self.assertTrue(shape(feature["corridor"]).is_valid)
@@ -101,7 +116,7 @@ class CatalogTests(unittest.TestCase):
 
     def test_species_point_index_deduplicates_havsorn_and_tracks_feature_matches(self):
         feature_ids = self.index["speciesPointFeatureIds"]
-        self.assertEqual(len(feature_ids), 388)
+        self.assertEqual(set(feature_ids), self.feature_ids)
         self.assertEqual(len(set(feature_ids)), len(feature_ids))
         havsorn = next(taxon for taxon in self.index["taxa"] if taxon["taxonId"] == 100067)
         manifests = self.index["speciesObservationFiles"][havsorn["pointBucket"]]

@@ -329,7 +329,9 @@ def fetch_nvl_trails(county: str) -> list[dict[str, Any]]:
                 "county": county,
                 "municipalities": municipalities,
                 "municipality": municipalities[0] if municipalities else None,
-                "lengthKm": round(length_km, 1),
+                # Keep metre-level precision for short access paths; rounding a
+                # 40 metre official trail to one decimal would expose 0.0 km.
+                "lengthKm": round(length_km, 3),
                 "trailType": properties.get("Typ_av_led"),
                 "trailCategory": properties.get("Ledkategori"),
                 "description": properties.get("Beskrivning"),
