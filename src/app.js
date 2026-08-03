@@ -11,8 +11,8 @@ import {
   resolveSpecies,
   speciesCatalog,
   speciesLabel,
-} from "./core.js?v=20260803-welcome-multispecies-v9";
-import { translations, translator } from "./i18n.js?v=20260803-welcome-multispecies-v9";
+} from "./core.js?v=20260803-trail-provenance-v10";
+import { translations, translator } from "./i18n.js?v=20260803-trail-provenance-v10";
 import {
   clearUserLocation,
   fitAllTrails,
@@ -24,7 +24,7 @@ import {
   setUserLocation,
   showFeaturePopup,
   showObservationPopup,
-} from "./map.js?v=20260803-welcome-multispecies-v9";
+} from "./map.js?v=20260803-trail-provenance-v10";
 
 const MAX_TAXA_SHOWN = 100;
 const OBSERVATION_TABLE_PAGE_SIZE = 100;

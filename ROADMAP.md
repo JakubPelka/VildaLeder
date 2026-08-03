@@ -293,6 +293,17 @@ services.
   optional reserve-name filter and a reserve-first journey: select a reserve to
   inspect recent species and intersecting walks, or select a species to rank
   reserves as well as trails across Sweden.
+- Evaluate Naturvårdsverket's **Leder och anordningar** as the primary source of
+  maintained public walking trails once its metadata catalogue is available
+  again, with OSM retained as a complementary source for wider community-mapped
+  coverage. Until the adapter can be verified, state clearly in the UI that the
+  OSM trail catalogue may be incomplete or outdated.
+- Normalise Naturvårdsverket and OSM trails into canonical features without
+  discarding either source record. Generate duplicate candidates using provider
+  IDs, normalised name/operator/municipality, endpoint proximity, and buffered
+  line overlap or a measured line-distance metric. Automatically merge only
+  strong matches, retain source IDs and geometries as provenance, and queue
+  ambiguous candidates for review; a shared name alone must never merge routes.
 - Materialise daily aggregates for `taxon × trail/reserve × date` so time-range
   counts, Sweden-wide species rankings, and optional `län`/`kommun` filters do
   not require repeated upstream API calls or browser downloads of raw points.

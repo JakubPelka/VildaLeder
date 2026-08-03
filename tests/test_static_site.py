@@ -79,6 +79,9 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn('LAYER_RESERVES = "nature-reserves-fill"', map_source)
         self.assertGreaterEqual(translations.count("maximumRangeNote"), 3)
         self.assertGreaterEqual(translations.count("sensitiveSpeciesNote"), 3)
+        self.assertIn('data-i18n="trailCoverageNote"', html)
+        self.assertGreaterEqual(translations.count("trailCoverageNote"), 3)
+        self.assertIn("OpenStreetMap", translations)
         self.assertGreaterEqual(translations.count("resetFilters"), 3)
 
     def test_custom_dates_location_tracking_and_skandobs_are_wired(self):
