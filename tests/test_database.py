@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -69,6 +70,25 @@ class PostgisContractTests(unittest.TestCase):
             [(version, path.name) for version, path in migration_files()],
             [(1, "001_initial.sql")],
         )
+
+    def test_refresh_windows_do_not_prune_canonical_observations_by_age(self):
+        refresh_sources = "\n".join(
+            (ROOT / "scripts" / name).read_text(encoding="utf-8")
+            for name in (
+                "sync_halland_postgis.py",
+                "import_postgis.py",
+                "import_skandobs.py",
+                "server_refresh.sh",
+            )
+        )
+        self.assertIsNone(
+            re.search(
+                r"DELETE\s+FROM\s+vildaleder\.observation(?:\s|$)",
+                refresh_sources,
+                flags=re.IGNORECASE,
+            )
+        )
+        self.assertIn("refresh windows do not prune by age", refresh_sources)
 
 
 if __name__ == "__main__":

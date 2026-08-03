@@ -10,9 +10,41 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260803-sos-species-points-v7">
+    <link rel="stylesheet" href="styles.css?v=20260803-trail-provenance-v10">
   </head>
   <body>
+    <section
+      id="welcome-dialog"
+      class="welcome-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="welcome-title"
+      hidden
+    >
+      <div class="welcome-card">
+        <button id="welcome-close" class="welcome-close" type="button" aria-label="Close">×</button>
+        <p class="welcome-eyebrow">VildaLeder</p>
+        <h1 id="welcome-title" data-i18n="welcomeTitle">Welcome to VildaLeder</h1>
+        <p class="welcome-lead" data-i18n="welcomeLead">
+          Your nature guide to Sweden's trails and nature reserves.
+        </p>
+        <p data-i18n="welcomeBody">
+          Check recent observations at a nature reserve or trail, or plan a visit around the species you hope to see.
+        </p>
+        <p data-i18n="welcomeContribute">
+          Support the community by reporting your own observations to Artportalen or another service that shares data with GBIF. Your observations help other nature enthusiasts and researchers.
+        </p>
+        <div class="welcome-actions">
+          <button id="welcome-start" class="welcome-primary" type="button" data-i18n="welcomeStart">
+            Start exploring
+          </button>
+          <button id="welcome-dismiss" class="welcome-secondary" type="button" data-i18n="welcomeDoNotShow">
+            Don't show again
+          </button>
+        </div>
+      </div>
+    </section>
+
     <header class="app-header">
       <div>
         <a class="brand" href="./">VildaLeder</a>
@@ -82,6 +114,9 @@
               <select id="municipality"></select>
             </label>
           </div>
+          <p class="data-caveat" data-i18n="trailCoverageNote">
+            Trail coverage is based on mapped OpenStreetMap route relations and may be incomplete or outdated.
+          </p>
         </section>
 
         <section class="filter-block" aria-labelledby="period-heading">
@@ -239,6 +274,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260803-sos-species-points-v7"></script>
+    <script type="module" src="src/app.js?v=20260803-community-welcome-v11"></script>
   </body>
 </html>

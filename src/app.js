@@ -11,8 +11,8 @@ import {
   resolveSpecies,
   speciesCatalog,
   speciesLabel,
-} from "./core.js?v=20260803-sos-species-points-v7";
-import { translations, translator } from "./i18n.js?v=20260803-sos-species-points-v7";
+} from "./core.js?v=20260803-community-welcome-v11";
+import { translations, translator } from "./i18n.js?v=20260803-community-welcome-v11";
 import {
   clearUserLocation,
   fitAllTrails,
@@ -24,7 +24,7 @@ import {
   setUserLocation,
   showFeaturePopup,
   showObservationPopup,
-} from "./map.js?v=20260803-sos-species-points-v7";
+} from "./map.js?v=20260803-community-welcome-v11";
 
 const MAX_TAXA_SHOWN = 100;
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
@@ -38,6 +38,8 @@ const PERIOD_PREFERENCE_KEY = "vildaleder-period";
 const CUSTOM_START_PREFERENCE_KEY = "vildaleder-custom-start";
 const CUSTOM_END_PREFERENCE_KEY = "vildaleder-custom-end";
 const PERIOD_VALUES = new Set(["day", "month", "quarter", "year", "custom"]);
+const WELCOME_COOKIE = "vildaleder_welcome_dismissed";
+const WELCOME_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 
 const state = {
   catalog: null,
@@ -72,6 +74,10 @@ const state = {
 };
 
 const elements = {
+  welcomeDialog: document.querySelector("#welcome-dialog"),
+  welcomeClose: document.querySelector("#welcome-close"),
+  welcomeStart: document.querySelector("#welcome-start"),
+  welcomeDismiss: document.querySelector("#welcome-dismiss"),
   status: document.querySelector("#status"),
   locateUser: document.querySelector("#locate-user"),
   locationStatus: document.querySelector("#location-status"),
@@ -183,8 +189,36 @@ function applyLanguage() {
     element.placeholder = t(element.dataset.i18nPlaceholder);
   });
   elements.mapTableResizer.setAttribute("aria-label", t("resizeMapTable"));
+  elements.welcomeClose.setAttribute("aria-label", t("welcomeClose"));
   updateLocationButton();
   if (state.catalog) renderAll();
+}
+
+function cookieValue(name) {
+  const prefix = `${encodeURIComponent(name)}=`;
+  const item = document.cookie
+    .split(";")
+    .map((value) => value.trim())
+    .find((value) => value.startsWith(prefix));
+  return item ? decodeURIComponent(item.slice(prefix.length)) : null;
+}
+
+function rememberWelcomeDismissal() {
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${encodeURIComponent(WELCOME_COOKIE)}=1; Max-Age=${WELCOME_COOKIE_MAX_AGE}; Path=/; SameSite=Lax${secure}`;
+}
+
+function closeWelcomeDialog({ remember = false } = {}) {
+  if (remember) rememberWelcomeDismissal();
+  elements.welcomeDialog.hidden = true;
+  document.body.classList.remove("welcome-is-open");
+}
+
+function showWelcomeDialog() {
+  if (cookieValue(WELCOME_COOKIE) === "1") return;
+  elements.welcomeDialog.hidden = false;
+  document.body.classList.add("welcome-is-open");
+  window.requestAnimationFrame(() => elements.welcomeClose.focus());
 }
 
 function populateAreaFilters() {
@@ -593,7 +627,10 @@ function renderResolvedTrailDetails(trail, observations) {
   osmLink.href = trail.sourceUrl || trail.osmUrl;
   osmLink.target = "_blank";
   osmLink.rel = "noreferrer";
-  links.append(osmLink);
+  const clearSelection = node("button", "clear-place-selection", t("clearPlaceSelection"));
+  clearSelection.type = "button";
+  clearSelection.addEventListener("click", clearTrailSelection);
+  links.append(osmLink, clearSelection);
   header.append(links);
   elements.trailDetails.append(header);
 
@@ -1061,6 +1098,10 @@ function updateMapStyles() {
 }
 
 function selectTrail(trailId) {
+  if (state.selectedTrailId === trailId) {
+    clearTrailSelection();
+    return;
+  }
   state.selectedTrailId = trailId;
   renderTrailResults();
   renderSpeciesResults();
@@ -1070,6 +1111,16 @@ function selectTrail(trailId) {
   if (window.innerWidth <= 800) {
     document.querySelector(".sidebar").scrollIntoView({ behavior: "smooth" });
   }
+}
+
+function clearTrailSelection() {
+  if (!state.selectedTrailId) return;
+  state.selectedTrailId = null;
+  renderTrailResults();
+  renderSpeciesResults();
+  void renderTrailDetails();
+  updateMapStyles();
+  fitAllTrails(areaTrails());
 }
 
 function resetFilters() {
@@ -1223,6 +1274,15 @@ function setMode(mode) {
 }
 
 function bindEvents() {
+  elements.welcomeClose.addEventListener("click", () => closeWelcomeDialog());
+  elements.welcomeStart.addEventListener("click", () => closeWelcomeDialog());
+  elements.welcomeDismiss.addEventListener("click", () => closeWelcomeDialog({ remember: true }));
+  elements.welcomeDialog.addEventListener("click", (event) => {
+    if (event.target === elements.welcomeDialog) closeWelcomeDialog();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !elements.welcomeDialog.hidden) closeWelcomeDialog();
+  });
   elements.language.addEventListener("change", () => {
     state.language = elements.language.value;
     localStorage.setItem("vildaleder-language", state.language);
@@ -1355,6 +1415,7 @@ async function start() {
   applyLanguage();
   initialisePeriodControls();
   bindEvents();
+  showWelcomeDialog();
   setupMapTableResizer();
   window.addEventListener("pageshow", () => {
     requestAnimationFrame(() => syncPeriodControlsFromDom());

@@ -251,6 +251,15 @@ for my chosen species?”
 - Display the ranking inputs, not only the rank.
 - Add comparable result cards and select/zoom behaviour.
 - Add seasonal and reporting-effort warnings.
+- Add an optional multi-species journey with two or three taxon chips. Candidate
+  trails and reserves must have evidence for every selected taxon in the active
+  period (`AND`); never silently broaden this to `OR`.
+- Normalize each selected taxon's evidence within the current candidate area
+  using log-scaled deduplicated counts, distinct observation days, and recency.
+  Combine the per-taxon values with a geometric or harmonic mean plus a weakest-
+  taxon penalty, so one abundant species cannot conceal poor evidence for
+  another. Show the raw count, distinct days, and latest date for every taxon and
+  describe the combined value as a match score, not a sighting probability.
 - Test rankings with representative species, including havsörn and taxa with
   sparse, common, sensitive, and multilingual records.
 
@@ -277,6 +286,11 @@ services.
   ingest new and changed source records, recheck a rolling correction window,
   retain source identifiers and provenance, and run a less frequent full
   reconciliation.
+- Treat the ten-year search range as a UI and export limit, not an automatic
+  PostGIS retention boundary. Preserve observations that age out of that range
+  so the historical archive grows year by year; remove or suppress records only
+  for explicit source corrections, withdrawals, privacy obligations, or a
+  separately approved retention policy.
 - Keep observations, trail lines and 200-metre corridors, nature-reserve
   boundaries, taxonomy, and administrative areas as separate spatial entities;
   compute and version their intersections in the local data platform.
@@ -284,6 +298,17 @@ services.
   optional reserve-name filter and a reserve-first journey: select a reserve to
   inspect recent species and intersecting walks, or select a species to rank
   reserves as well as trails across Sweden.
+- Evaluate Naturvårdsverket's **Leder och anordningar** as the primary source of
+  maintained public walking trails once its metadata catalogue is available
+  again, with OSM retained as a complementary source for wider community-mapped
+  coverage. Until the adapter can be verified, state clearly in the UI that the
+  OSM trail catalogue may be incomplete or outdated.
+- Normalise Naturvårdsverket and OSM trails into canonical features without
+  discarding either source record. Generate duplicate candidates using provider
+  IDs, normalised name/operator/municipality, endpoint proximity, and buffered
+  line overlap or a measured line-distance metric. Automatically merge only
+  strong matches, retain source IDs and geometries as provenance, and queue
+  ambiguous candidates for review; a shared name alone must never merge routes.
 - Materialise daily aggregates for `taxon × trail/reserve × date` so time-range
   counts, Sweden-wide species rankings, and optional `län`/`kommun` filters do
   not require repeated upstream API calls or browser downloads of raw points.
@@ -304,6 +329,14 @@ services.
   asynchronous GBIF downloads for national backfills. The occurrence-search API
   is suitable for interactive tests but pages at 300 records and has a hard
   100,000-record query ceiling.
+- Keep the national bootstrap in an isolated `vildaleder_sweden` database until
+  coverage, storage, query latency, and daily correction handling have been
+  verified. Seed it with the validated Halland database, checkpoint every
+  feature/year window, and switch a future API DSN rather than exposing partial
+  national data through the static Halland client.
+- Enrich SOS/Dyntaxa taxa with cached GBIF vernacular names for `en` and `pl`
+  while preserving Swedish names and scientific names. Treat GBIF as the source
+  of those name assertions, not as authority over Swedish Red List status.
 - Fetch raw point evidence from the VildaLeder service only after a user selects
   a trail, reserve, or species result; continue to expose authoritative source
   links and data-quality context.

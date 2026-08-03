@@ -36,6 +36,99 @@ body {
   flex-direction: column;
 }
 
+body.welcome-is-open {
+  overflow: hidden;
+}
+
+.welcome-dialog {
+  position: fixed;
+  z-index: 2000;
+  display: grid;
+  padding: 1rem;
+  background: rgb(10 30 20 / 58%);
+  inset: 0;
+  place-items: center;
+}
+
+.welcome-card {
+  position: relative;
+  width: min(100%, 34rem);
+  padding: clamp(1.4rem, 4vw, 2.4rem);
+  border: 1px solid rgb(255 255 255 / 35%);
+  border-radius: 1rem;
+  background: var(--panel);
+  box-shadow: 0 24px 70px rgb(5 26 16 / 35%);
+}
+
+.welcome-card h1 {
+  margin: 0 2.5rem 0.7rem 0;
+  color: var(--brand-dark);
+  font-size: clamp(1.65rem, 5vw, 2.3rem);
+  letter-spacing: -0.035em;
+}
+
+.welcome-card p {
+  line-height: 1.6;
+}
+
+.welcome-eyebrow {
+  margin: 0 0 0.45rem !important;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.welcome-lead {
+  color: var(--brand-dark);
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.welcome-close {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.4rem;
+}
+
+.welcome-actions button {
+  min-height: 2.7rem;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.welcome-primary {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.welcome-secondary {
+  border-color: transparent;
+  background: transparent;
+  color: var(--brand-dark);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 button,
 input,
 select {
@@ -335,8 +428,26 @@ label > span,
 
 .details-links {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.8rem;
   font-size: 0.78rem;
+}
+
+.clear-place-selection {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand-dark);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.clear-place-selection:hover {
+  color: var(--brand);
 }
 
 .taxon-list {
@@ -833,6 +944,15 @@ footer {
 }
 
 @media (max-width: 800px) {
+  .welcome-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .welcome-actions button {
+    width: 100%;
+  }
+
   .app-header {
     align-items: flex-start;
   }

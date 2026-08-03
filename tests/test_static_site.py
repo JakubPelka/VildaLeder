@@ -79,6 +79,9 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn('LAYER_RESERVES = "nature-reserves-fill"', map_source)
         self.assertGreaterEqual(translations.count("maximumRangeNote"), 3)
         self.assertGreaterEqual(translations.count("sensitiveSpeciesNote"), 3)
+        self.assertIn('data-i18n="trailCoverageNote"', html)
+        self.assertGreaterEqual(translations.count("trailCoverageNote"), 3)
+        self.assertIn("OpenStreetMap", translations)
         self.assertGreaterEqual(translations.count("resetFilters"), 3)
 
     def test_custom_dates_location_tracking_and_skandobs_are_wired(self):
@@ -102,6 +105,7 @@ class StaticSiteTests(unittest.TestCase):
         html = (ROOT / "index.html").read_text(encoding="utf-8")
         app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
         map_source = (ROOT / "src" / "map.js").read_text(encoding="utf-8")
+        translations = (ROOT / "src" / "i18n.js").read_text(encoding="utf-8")
         self.assertIn("cluster: true", map_source)
         self.assertIn('LAYER_OBSERVATION_CLUSTERS = "observations-clusters"', map_source)
         self.assertIn("point_count_abbreviated", map_source)
@@ -135,6 +139,15 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("showFeaturePopup(lngLat, featurePopup(feature))", app)
         self.assertIn("showFeatureTooltip", map_source)
         self.assertIn("feature-name-tooltip", map_source)
+        self.assertIn("function clearTrailSelection()", app)
+        self.assertIn("state.selectedTrailId === trailId", app)
+        self.assertIn("clearPlaceSelection", app)
+        self.assertIn('id="welcome-dialog"', html)
+        self.assertIn('data-i18n="welcomeContribute"', html)
+        self.assertGreaterEqual(translations.count("welcomeContribute"), 3)
+        self.assertIn("WELCOME_COOKIE", app)
+        self.assertIn("SameSite=Lax", app)
+        self.assertIn("closeWelcomeDialog({ remember: true })", app)
 
     def test_refresh_is_owned_by_the_local_server_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
@@ -149,6 +162,7 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("scripts/sync_features.py", refresh)
         self.assertIn("scripts/sync_halland_postgis.py", refresh)
         self.assertIn("scripts/sync_skandobs.py", refresh)
+        self.assertIn("scripts/enrich_gbif_taxonomy.py", refresh)
         self.assertIn("scripts/export_postgis_snapshot.py", refresh)
         self.assertIn('git push origin "HEAD:${REFRESH_BRANCH}"', refresh)
         self.assertIn("speciesPointFeatureIds", refresh)

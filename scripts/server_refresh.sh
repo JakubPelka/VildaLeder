@@ -98,6 +98,8 @@ cd "${run_directory}/repo"
 log "Applying database migrations"
 "${PYTHON_BIN}" scripts/migrate_postgis.py
 
+log "Retaining all historical PostGIS observations; refresh windows do not prune by age"
+
 log "Refreshing Halland OSM trails and Naturvårdsregistret reserves"
 "${PYTHON_BIN}" scripts/sync_features.py --database-url "${DATABASE_URL}"
 
@@ -109,6 +111,11 @@ else
   "${PYTHON_BIN}" scripts/sync_halland_postgis.py --days 3650 --workers 4
   log "Refreshing the rolling ${ROLLING_DAYS}-day SOS correction window"
   "${PYTHON_BIN}" scripts/sync_halland_postgis.py --days "${ROLLING_DAYS}" --workers 4 --force
+fi
+
+log "Refreshing multilingual GBIF taxonomy names"
+if ! "${PYTHON_BIN}" scripts/enrich_gbif_taxonomy.py --workers 6; then
+  log "GBIF taxonomy enrichment failed; retaining the names already stored in PostGIS"
 fi
 
 log "Refreshing experimental public Skandobs evidence"
