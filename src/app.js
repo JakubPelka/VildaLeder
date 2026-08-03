@@ -11,8 +11,8 @@ import {
   resolveSpecies,
   speciesCatalog,
   speciesLabel,
-} from "./core.js";
-import { translations, translator } from "./i18n.js";
+} from "./core.js?v=20260803-species-map-tooltips-v6";
+import { translations, translator } from "./i18n.js?v=20260803-species-map-tooltips-v6";
 import {
   clearUserLocation,
   fitAllTrails,
@@ -22,12 +22,22 @@ import {
   setObservations,
   setTrails,
   setUserLocation,
+  showFeaturePopup,
   showObservationPopup,
-} from "./map.js";
+} from "./map.js?v=20260803-species-map-tooltips-v6";
 
 const MAX_TAXA_SHOWN = 100;
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
+const SNAPSHOT_POLL_MS = 15 * 60 * 1_000;
+const MAP_TABLE_RATIO_KEY = "vildaleder-map-table-ratio";
+const DEFAULT_MAP_TABLE_RATIO = 0.25;
+const MIN_MAP_HEIGHT = 240;
+const MIN_TABLE_HEIGHT = 160;
+const PERIOD_PREFERENCE_KEY = "vildaleder-period";
+const CUSTOM_START_PREFERENCE_KEY = "vildaleder-custom-start";
+const CUSTOM_END_PREFERENCE_KEY = "vildaleder-custom-end";
+const PERIOD_VALUES = new Set(["day", "month", "quarter", "year", "custom"]);
 
 const state = {
   catalog: null,
@@ -84,6 +94,8 @@ const elements = {
   speciesResults: document.querySelector("#species-results"),
   trailDetails: document.querySelector("#trail-details"),
   mapObservationSummary: document.querySelector("#map-observation-summary"),
+  mapPanel: document.querySelector(".map-panel"),
+  mapTableResizer: document.querySelector("#map-table-resizer"),
   redlistFilters: document.querySelector("#redlist-filters"),
   observationTablePanel: document.querySelector("#observation-table-panel"),
   observationTableTitle: document.querySelector("#observation-table-title"),
@@ -169,6 +181,7 @@ function applyLanguage() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
     element.placeholder = t(element.dataset.i18nPlaceholder);
   });
+  elements.mapTableResizer.setAttribute("aria-label", t("resizeMapTable"));
   updateLocationButton();
   if (state.catalog) renderAll();
 }
@@ -338,7 +351,7 @@ async function loadPartition(file) {
   if (!state.partitionCache.has(file.path)) {
     state.partitionCache.set(
       file.path,
-      fetch(file.path).then((response) => {
+      fetch(file.path, { cache: "no-cache" }).then((response) => {
         if (!response.ok) throw new Error(`Partition request failed: ${response.status}`);
         return response.json();
       }),
@@ -413,15 +426,51 @@ function expandSkandobsObservation(record) {
   };
 }
 
+function areaSpeciesObservations() {
+  if (!state.selectedSpecies || !state.skandobs) return [];
+  const observationIds = new Set();
+  areaTrails().forEach((feature) => {
+    (state.skandobs.matches?.[feature.id] || []).forEach((observationId) =>
+      observationIds.add(observationId),
+    );
+  });
+  return filterObservations(
+    [...observationIds]
+      .map((observationId) => state.skandobsRecordById.get(observationId))
+      .filter(Boolean)
+      .filter(
+        (record) => String(record.taxonId) === String(state.selectedSpecies.taxonId),
+      )
+      .map(expandSkandobsObservation),
+    currentRange(),
+  );
+}
+
+function renderAreaSpeciesObservations() {
+  const observations = areaSpeciesObservations();
+  renderRedlistFilters(observations);
+  const visibleObservations = observations.filter(
+    (observation) =>
+      !state.disabledRedlistCategories.has(observation.redlistCategory || "unknown"),
+  );
+  const mappedObservationCount = setObservations(visibleObservations) ?? 0;
+  setObservationTableRows([]);
+  renderMapObservationSummary(null, mappedObservationCount);
+}
+
 async function renderTrailDetails() {
   const request = ++state.detailsRequest;
   const trail = state.catalog.trails.find((candidate) => candidate.id === state.selectedTrailId);
   elements.trailDetails.replaceChildren();
   if (!trail) {
-    setObservations([]);
-    setObservationTableRows([]);
-    renderRedlistFilters([]);
-    renderMapObservationSummary(null, 0);
+    if (state.mode === "species" && state.selectedSpecies) {
+      renderAreaSpeciesObservations();
+    } else {
+      setObservations([]);
+      setObservationTableRows([]);
+      renderRedlistFilters([]);
+      renderMapObservationSummary(null, 0);
+    }
     elements.trailDetails.append(node("p", "empty-state", t("selectTrail")));
     return;
   }
@@ -600,6 +649,7 @@ function sortObservationTable(key) {
 function renderObservationTable() {
   const hasSelection = Boolean(state.catalog && state.selectedTrailId);
   elements.observationTablePanel.hidden = !hasSelection;
+  elements.mapTableResizer.hidden = !hasSelection;
   if (!hasSelection) return;
 
   const selectedObject = state.catalog.trails.find(
@@ -660,6 +710,82 @@ function renderObservationTable() {
     });
     elements.observationTablePagination.append(previous, page, next);
   }
+}
+
+function mapTableRatioBounds() {
+  const panelHeight = Math.max(1, elements.mapPanel.clientHeight);
+  const resizerHeight = elements.mapTableResizer.offsetHeight || 13;
+  const min = Math.max(0.18, MIN_TABLE_HEIGHT / panelHeight);
+  return {
+    min,
+    max: Math.max(
+      min,
+      Math.min(0.65, (panelHeight - MIN_MAP_HEIGHT - resizerHeight) / panelHeight),
+    ),
+  };
+}
+
+function applyMapTableRatio(requestedRatio, persist = false) {
+  const bounds = mapTableRatioBounds();
+  const ratio = Math.min(Math.max(requestedRatio, bounds.min), Math.max(bounds.min, bounds.max));
+  const percentage = Math.round(ratio * 1000) / 10;
+  elements.mapPanel.style.setProperty("--observation-table-ratio", `${percentage}%`);
+  elements.mapTableResizer.setAttribute("aria-valuemin", String(Math.round(bounds.min * 100)));
+  elements.mapTableResizer.setAttribute("aria-valuemax", String(Math.round(bounds.max * 100)));
+  elements.mapTableResizer.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+  if (persist) localStorage.setItem(MAP_TABLE_RATIO_KEY, String(ratio));
+  return ratio;
+}
+
+function setupMapTableResizer() {
+  const savedRatio = Number(localStorage.getItem(MAP_TABLE_RATIO_KEY));
+  let ratio = applyMapTableRatio(
+    Number.isFinite(savedRatio) && savedRatio > 0 ? savedRatio : DEFAULT_MAP_TABLE_RATIO,
+  );
+  let dragging = false;
+
+  const finishDrag = (event) => {
+    if (!dragging) return;
+    dragging = false;
+    elements.mapPanel.classList.remove("is-resizing");
+    document.body.classList.remove("is-resizing-map-table");
+    if (event?.pointerId !== undefined && elements.mapTableResizer.hasPointerCapture(event.pointerId)) {
+      elements.mapTableResizer.releasePointerCapture(event.pointerId);
+    }
+    ratio = applyMapTableRatio(ratio, true);
+  };
+
+  elements.mapTableResizer.addEventListener("pointerdown", (event) => {
+    if (window.matchMedia("(max-width: 800px)").matches) return;
+    dragging = true;
+    elements.mapTableResizer.setPointerCapture(event.pointerId);
+    elements.mapPanel.classList.add("is-resizing");
+    document.body.classList.add("is-resizing-map-table");
+    event.preventDefault();
+  });
+  elements.mapTableResizer.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    const panel = elements.mapPanel.getBoundingClientRect();
+    ratio = applyMapTableRatio((panel.bottom - event.clientY) / panel.height);
+  });
+  elements.mapTableResizer.addEventListener("pointerup", finishDrag);
+  elements.mapTableResizer.addEventListener("pointercancel", finishDrag);
+  elements.mapTableResizer.addEventListener("dblclick", () => {
+    ratio = applyMapTableRatio(DEFAULT_MAP_TABLE_RATIO, true);
+  });
+  elements.mapTableResizer.addEventListener("keydown", (event) => {
+    let nextRatio = ratio;
+    if (event.key === "ArrowUp") nextRatio += 0.04;
+    else if (event.key === "ArrowDown") nextRatio -= 0.04;
+    else if (event.key === "Home") nextRatio = mapTableRatioBounds().min;
+    else if (event.key === "End") nextRatio = mapTableRatioBounds().max;
+    else return;
+    event.preventDefault();
+    ratio = applyMapTableRatio(nextRatio, true);
+  });
+  window.addEventListener("resize", () => {
+    ratio = applyMapTableRatio(ratio);
+  });
 }
 
 function observationTableRow(observation) {
@@ -784,6 +910,13 @@ function taxonRow(taxon) {
 function renderMapObservationSummary(trail, count) {
   elements.mapObservationSummary.dataset.count = String(count);
   if (!trail) {
+    if (state.mode === "species" && state.selectedSpecies) {
+      elements.mapObservationSummary.textContent = t("mapSpeciesAreaPoints", {
+        count: formatNumber(count),
+        species: localizedSpeciesLabel(state.selectedSpecies),
+      });
+      return;
+    }
     elements.mapObservationSummary.textContent = t("mapSelectTrail");
     return;
   }
@@ -841,6 +974,34 @@ function observationPopup(observation) {
   return wrapper;
 }
 
+function featurePopup(feature) {
+  const wrapper = node("div", "feature-popup");
+  wrapper.append(node("div", "popup-title", feature.name));
+  const municipalities = (feature.municipalities || [feature.municipality].filter(Boolean)).join(", ");
+  const dimension = feature.featureKind === "reserve"
+    ? t("areaHectares", { value: formatNumber(Math.round(feature.areaHa || 0)) })
+    : t("length", { value: feature.lengthKm });
+  wrapper.append(
+    node(
+      "div",
+      "popup-meta",
+      `${t(feature.featureKind === "reserve" ? "natureReserve" : "trail")} · ${municipalities} · ${dimension}`,
+    ),
+  );
+  if (feature.sourceUrl || feature.osmUrl) {
+    const link = node(
+      "a",
+      "",
+      t(feature.featureKind === "reserve" ? "reserveSource" : "osmRoute"),
+    );
+    link.href = feature.sourceUrl || feature.osmUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    wrapper.append(link);
+  }
+  return wrapper;
+}
+
 function drawMap() {
   const visibleIds = areaTrails().map((trail) => trail.id);
   setTrails(state.catalog.trails, visibleIds, state.selectedTrailId);
@@ -887,6 +1048,7 @@ function resetFilters() {
   elements.customDates.hidden = true;
   elements.dateFrom.value = state.customStart;
   elements.dateTo.value = state.customEnd;
+  persistPeriodControls();
   elements.trailSearch.value = "";
   elements.speciesSearch.value = "";
   setMode("trail");
@@ -898,6 +1060,36 @@ function activateCustomPeriod() {
   state.period = "custom";
   elements.period.value = "custom";
   elements.customDates.hidden = false;
+}
+
+function persistPeriodControls() {
+  localStorage.setItem(PERIOD_PREFERENCE_KEY, state.period);
+  if (state.customStart) localStorage.setItem(CUSTOM_START_PREFERENCE_KEY, state.customStart);
+  if (state.customEnd) localStorage.setItem(CUSTOM_END_PREFERENCE_KEY, state.customEnd);
+}
+
+function initialisePeriodControls() {
+  const savedPeriod = localStorage.getItem(PERIOD_PREFERENCE_KEY);
+  if (PERIOD_VALUES.has(savedPeriod)) elements.period.value = savedPeriod;
+  state.period = PERIOD_VALUES.has(elements.period.value) ? elements.period.value : "year";
+  state.customStart = localStorage.getItem(CUSTOM_START_PREFERENCE_KEY) || elements.dateFrom.value;
+  state.customEnd = localStorage.getItem(CUSTOM_END_PREFERENCE_KEY) || elements.dateTo.value;
+  elements.customDates.hidden = state.period !== "custom";
+}
+
+function syncPeriodControlsFromDom({ persist = true, render = true } = {}) {
+  const period = PERIOD_VALUES.has(elements.period.value) ? elements.period.value : "year";
+  state.period = period;
+  elements.customDates.hidden = period !== "custom";
+  if (elements.dateFrom.value) state.customStart = elements.dateFrom.value;
+  if (elements.dateTo.value) state.customEnd = elements.dateTo.value;
+  if (persist) persistPeriodControls();
+  if (render && state.catalog) renderAll();
+}
+
+function datePreferenceInWindow(value, windowStart, windowEnd, fallback) {
+  const day = dateOnly(value);
+  return day && day >= windowStart && day <= windowEnd ? day : fallback;
 }
 
 function updateLocationButton() {
@@ -972,6 +1164,10 @@ function toggleLocationTracking() {
 }
 
 function setMode(mode) {
+  if (mode === "species" && state.mode !== "species") {
+    state.selectedTrailId = null;
+    state.loadedSelection = null;
+  }
   state.mode = mode;
   elements.modeTabs.forEach((tab) => {
     const active = tab.dataset.mode === mode;
@@ -1013,18 +1209,18 @@ function bindEvents() {
     fitAllTrails(areaTrails());
   });
   elements.period.addEventListener("change", () => {
-    state.period = elements.period.value;
-    elements.customDates.hidden = state.period !== "custom";
-    renderAll();
+    syncPeriodControlsFromDom();
   });
   elements.dateFrom.addEventListener("change", () => {
     activateCustomPeriod();
     state.customStart = elements.dateFrom.value;
+    persistPeriodControls();
     renderAll();
   });
   elements.dateTo.addEventListener("change", () => {
     activateCustomPeriod();
     state.customEnd = elements.dateTo.value;
+    persistPeriodControls();
     renderAll();
   });
   elements.trailSearch.addEventListener("input", () => {
@@ -1039,9 +1235,25 @@ function bindEvents() {
 }
 
 async function loadJson(path, label) {
-  const response = await fetch(path);
+  const response = await fetch(path, { cache: "no-cache" });
   if (!response.ok) throw new Error(`${label} request failed: ${response.status}`);
   return response.json();
+}
+
+function startSnapshotWatcher(generatedAt) {
+  window.setInterval(async () => {
+    try {
+      const catalog = await loadJson(
+        `data/catalog.json?refresh=${Date.now()}`,
+        "Catalog refresh check",
+      );
+      if (catalog.meta?.generatedAt && catalog.meta.generatedAt !== generatedAt) {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.warn("Snapshot refresh check failed", error);
+    }
+  }, SNAPSHOT_POLL_MS);
 }
 
 function mergedCatalog(observationCatalog, featureCatalog) {
@@ -1098,7 +1310,12 @@ function mergedSearchIndex(primary, additional) {
 
 async function start() {
   applyLanguage();
+  initialisePeriodControls();
   bindEvents();
+  setupMapTableResizer();
+  window.addEventListener("pageshow", () => {
+    requestAnimationFrame(() => syncPeriodControlsFromDom());
+  });
   try {
     const [observationCatalog, featureCatalog, searchIndex, skandobs] = await Promise.all([
       loadJson("data/catalog.json", "Catalog"),
@@ -1106,7 +1323,11 @@ async function start() {
       loadJson("data/search-index.json", "Search index"),
       loadJson("data/skandobs.json", "Skandobs snapshot"),
       initMap({
-        onTrailClick: selectTrail,
+        onTrailClick: (trailId, lngLat) => {
+          selectTrail(trailId);
+          const feature = state.catalog?.trails.find((candidate) => candidate.id === trailId);
+          if (feature) showFeaturePopup(lngLat, featurePopup(feature));
+        },
         onObservationClick: (observation, lngLat) =>
           showObservationPopup(observation, lngLat, observationPopup(observation)),
       }),
@@ -1118,20 +1339,34 @@ async function start() {
     state.catalog = mergedCatalog(observationCatalog, featureCatalog);
     state.searchIndex = mergedSearchIndex(searchIndex, skandobs);
     state.taxonById = new Map(
-      (searchIndex.taxa || []).map((taxon) => [String(taxon.taxonId), taxon]),
+      (state.searchIndex.taxa || []).map((taxon) => [String(taxon.taxonId), taxon]),
     );
     elements.dateFrom.min = state.catalog.meta.windowStart;
     elements.dateFrom.max = state.catalog.meta.windowEnd;
-    elements.dateFrom.value = state.catalog.meta.windowStart;
+    state.customStart = datePreferenceInWindow(
+      state.customStart,
+      state.catalog.meta.windowStart,
+      state.catalog.meta.windowEnd,
+      state.catalog.meta.windowStart,
+    );
+    state.customEnd = datePreferenceInWindow(
+      state.customEnd,
+      state.catalog.meta.windowStart,
+      state.catalog.meta.windowEnd,
+      state.catalog.meta.windowEnd,
+    );
+    elements.dateFrom.value = state.customStart;
     elements.dateTo.min = state.catalog.meta.windowStart;
     elements.dateTo.max = state.catalog.meta.windowEnd;
-    elements.dateTo.value = state.catalog.meta.windowEnd;
-    state.customStart = state.catalog.meta.windowStart;
-    state.customEnd = state.catalog.meta.windowEnd;
+    elements.dateTo.value = state.customEnd;
+    elements.period.value = state.period;
+    elements.customDates.hidden = state.period !== "custom";
+    persistPeriodControls();
     elements.status.classList.add("is-ready");
     populateSpeciesSuggestions();
     drawMap();
     renderAll();
+    startSnapshotWatcher(state.catalog.meta.generatedAt);
   } catch (error) {
     console.error(error);
     elements.status.classList.add("is-error");

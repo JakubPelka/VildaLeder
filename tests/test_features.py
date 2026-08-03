@@ -63,6 +63,12 @@ class FeatureSyncTests(unittest.TestCase):
         self.assertEqual(catalog["meta"]["bufferMeters"], 200)
         self.assertEqual(catalog["meta"]["maximumObservationYears"], 10)
 
+    def test_geometry_changes_invalidate_observation_coverage(self):
+        source = (ROOT / "scripts" / "sync_features.py").read_text(encoding="utf-8")
+        self.assertIn("previous_geometry_version != new_geometry_version", source)
+        self.assertIn('f"sos_window:{feature_id}:%"', source)
+        self.assertIn('f"sos_complete:{feature_id}:%"', source)
+
 
 class GeneratedFeatureCatalogTests(unittest.TestCase):
     @classmethod

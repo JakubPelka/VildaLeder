@@ -343,9 +343,24 @@ def ensure_sources(connection: psycopg.Connection[Any]) -> dict[str, int]:
 def upsert_postgis(database_url: str, features: list[dict[str, Any]]) -> dict[str, int]:
     with psycopg.connect(database_url) as connection:
         sources = ensure_sources(connection)
+        existing_versions = {
+            (source_key, source_feature_id): version
+            for source_key, source_feature_id, version in connection.execute(
+                """SELECT source.source_key, feature.source_feature_id,
+                          feature.geometry_version
+                   FROM vildaleder.spatial_feature feature
+                   JOIN vildaleder.data_source source USING (source_id)
+                   WHERE source.source_key IN ('osm', 'nvr')"""
+            ).fetchall()
+        }
         feature_ids = []
+        invalidated_features = []
         for feature in features:
             source_id = sources[feature["source"]]
+            new_geometry_version = geometry_version(feature)
+            previous_geometry_version = existing_versions.get(
+                (feature["source"], str(feature["sourceFeatureId"]))
+            )
             properties = {
                 key: feature.get(key)
                 for key in (
@@ -394,10 +409,15 @@ def upsert_postgis(database_url: str, features: list[dict[str, Any]]) -> dict[st
                     json.dumps(feature["analysisGeometry"], ensure_ascii=False),
                     feature.get("sourceUrl"),
                     json.dumps(properties, ensure_ascii=False),
-                    geometry_version(feature),
+                    new_geometry_version,
                 ),
             ).fetchone()[0]
             feature_ids.append(feature_id)
+            if (
+                previous_geometry_version is not None
+                and previous_geometry_version != new_geometry_version
+            ):
+                invalidated_features.append(feature["id"])
             connection.execute(
                 """INSERT INTO vildaleder.feature_name(
                        feature_id, language_code, name, name_normalized, source_id, is_preferred
@@ -405,6 +425,15 @@ def upsert_postgis(database_url: str, features: list[dict[str, Any]]) -> dict[st
                    ON CONFLICT (feature_id, language_code, name, source_id) DO UPDATE
                    SET name_normalized = EXCLUDED.name_normalized, is_preferred = true""",
                 (feature_id, feature["name"], normalized_name(feature["name"]), source_id),
+            )
+        with connection.cursor() as cursor:
+            cursor.executemany(
+                """DELETE FROM vildaleder.metadata
+                   WHERE key LIKE %s OR key LIKE %s""",
+                (
+                    (f"sos_window:{feature_id}:%", f"sos_complete:{feature_id}:%")
+                    for feature_id in invalidated_features
+                ),
             )
         connection.execute(
             """UPDATE vildaleder.spatial_feature
@@ -423,7 +452,11 @@ def upsert_postgis(database_url: str, features: list[dict[str, Any]]) -> dict[st
                 (COUNTY,),
             ).fetchall()
         )
-    return {"trails": counts.get("trail", 0), "reserves": counts.get("reserve", 0)}
+    return {
+        "trails": counts.get("trail", 0),
+        "reserves": counts.get("reserve", 0),
+        "invalidated": len(invalidated_features),
+    }
 
 
 def build_catalog(features: list[dict[str, Any]]) -> dict[str, Any]:

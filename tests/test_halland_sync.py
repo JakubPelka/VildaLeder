@@ -3,7 +3,7 @@ from datetime import date
 from pathlib import Path
 
 from scripts.export_postgis_snapshot import compact_record
-from scripts.sync_halland_postgis import ordered_features, year_windows
+from scripts.sync_halland_postgis import complete_feature_ids, ordered_features, year_windows
 
 
 class HallandSyncTests(unittest.TestCase):
@@ -30,7 +30,16 @@ class HallandSyncTests(unittest.TestCase):
 
     def test_halland_sync_skips_already_complete_features(self):
         source = Path("scripts/sync_halland_postgis.py").read_text(encoding="utf-8")
-        self.assertIn('complete_key(feature["id"], window_start, args.end_date) not in complete', source)
+        self.assertIn('feature["id"] not in complete', source)
+
+    def test_daily_bootstrap_accepts_an_existing_full_length_window(self):
+        keys = {
+            "sos_complete:osm-1:2016-08-06:2026-08-03",
+            "sos_complete:nvr-2:2026-05-06:2026-08-03",
+            "invalid",
+        }
+        self.assertEqual(complete_feature_ids(keys, 3_650), {"osm-1"})
+        self.assertEqual(complete_feature_ids(keys, 90), {"osm-1", "nvr-2"})
 
     def test_year_windows_are_newest_first_complete_and_non_overlapping(self):
         windows = year_windows(date(2023, 8, 6), date(2026, 8, 3))

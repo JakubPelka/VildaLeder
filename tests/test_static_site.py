@@ -95,8 +95,8 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("navigator.geolocation.getCurrentPosition", app)
         self.assertIn("setUserLocation", map_source)
         self.assertIn('SOURCE_USER_LOCATION = "user-location"', map_source)
-        self.assertIn("scripts/sync_skandobs.py", workflow)
-        self.assertIn("continue-on-error: true", workflow)
+        self.assertIn("scripts/server_refresh.sh", workflow)
+        self.assertNotIn("schedule:", workflow)
 
     def test_map_clusters_overlapping_points_and_observation_table_tracks_selection(self):
         html = (ROOT / "index.html").read_text(encoding="utf-8")
@@ -108,6 +108,15 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("getClusterExpansionZoom", map_source)
         self.assertIn('id="observation-table-panel"', html)
         self.assertIn('id="observation-table-body"', html)
+        self.assertIn('id="map-table-resizer"', html)
+        self.assertIn('role="separator"', html)
+        self.assertIn("setupMapTableResizer()", app)
+        self.assertIn("vildaleder-map-table-ratio", app)
+        self.assertIn('addEventListener("pointermove"', app)
+        self.assertIn('addEventListener("keydown"', app)
+        self.assertIn("vildaleder-period", app)
+        self.assertIn('addEventListener("pageshow"', app)
+        self.assertIn('elements.customDates.hidden = state.period !== "custom"', app)
         self.assertIn("setObservationTableRows(visibleMapObservations)", app)
         self.assertNotIn("onViewportChange: handleViewportChange", app)
         self.assertIn('data-sort="redlist"', html)
@@ -115,16 +124,31 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("sortObservationTable", app)
         self.assertIn("focusObservation(observation)", app)
         self.assertIn("OBSERVATION_TABLE_PAGE_SIZE", app)
+        self.assertIn("function areaSpeciesObservations()", app)
+        self.assertIn("state.skandobs.matches", app)
+        self.assertIn("mapSpeciesAreaPoints", app)
+        self.assertIn("(state.searchIndex.taxa || [])", app)
+        self.assertIn("function featurePopup(feature)", app)
+        self.assertIn("showFeaturePopup(lngLat, featurePopup(feature))", app)
+        self.assertIn("showFeatureTooltip", map_source)
+        self.assertIn("feature-name-tooltip", map_source)
 
-    def test_refresh_workflow_uses_named_secret_without_embedding_a_key(self):
+    def test_refresh_is_owned_by_the_local_server_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("SOS_SUBSCRIPTION_KEY: ${{ secrets.SOS_SUBSCRIPTION_KEY }}", workflow)
-        self.assertIn('cron: "17 4 * * *"', workflow)
-        self.assertIn("scripts/refresh_data.py --incremental", workflow)
-        self.assertIn("data/search-index.json data/observations", workflow)
-        self.assertIn("data/skandobs.json", workflow)
+        refresh = (ROOT / "scripts" / "server_refresh.sh").read_text(encoding="utf-8")
+        timer = (ROOT / "deploy" / "systemd" / "vildaleder-refresh.timer").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("schedule:", workflow)
+        self.assertIn("03:00:00 Europe/Stockholm", timer)
+        self.assertIn("scripts/sync_features.py", refresh)
+        self.assertIn("scripts/sync_halland_postgis.py", refresh)
+        self.assertIn("scripts/sync_skandobs.py", refresh)
+        self.assertIn("scripts/export_postgis_snapshot.py", refresh)
+        self.assertIn('git push origin "HEAD:${REFRESH_BRANCH}"', refresh)
+        self.assertIn("SNAPSHOT_POLL_MS", (ROOT / "src" / "app.js").read_text(encoding="utf-8"))
         self.assertIsNone(re.search(r"[a-f0-9]{32}", workflow, flags=re.IGNORECASE))
 
 

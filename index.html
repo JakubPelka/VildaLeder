@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260803-halland-table-v2">
+    <link rel="stylesheet" href="styles.css?v=20260803-species-map-tooltips-v6">
   </head>
   <body>
     <header class="app-header">
@@ -177,6 +177,18 @@
             <div id="redlist-filters" class="redlist-filters" aria-live="polite"></div>
           </div>
         </div>
+        <div
+          id="map-table-resizer"
+          class="map-table-resizer"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-controls="map observation-table-panel"
+          aria-valuemin="20"
+          aria-valuemax="65"
+          aria-valuenow="25"
+          tabindex="0"
+          hidden
+        ></div>
         <section id="observation-table-panel" class="observation-table-panel" aria-labelledby="observation-table-title" hidden>
           <div class="observation-table-header">
             <div>
@@ -227,6 +239,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260803-halland-table-v2"></script>
+    <script type="module" src="src/app.js?v=20260803-species-map-tooltips-v6"></script>
   </body>
 </html>
