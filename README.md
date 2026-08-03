@@ -200,6 +200,31 @@ never exposed publicly. See
 for schema, multilingual taxonomy, daily sync, reserve support, local-hosting,
 and migration details.
 
+To populate the canonical store beyond the original Halmstad snapshot, run the
+resumable Halland synchroniser. It queries bounded one-year windows and commits
+each completed feature window independently, so a network or API interruption
+does not discard earlier work. A municipality can be completed first for staged
+testing:
+
+```bash
+SOS_SUBSCRIPTION_KEY_FILE=/absolute/path/to/specieskey.txt \
+DATABASE_URL="$DATABASE_URL" \
+.venv/bin/python scripts/sync_halland_postgis.py --municipality Kungsbacka
+```
+
+Omit `--municipality` for all Halland; Kungsbacka is prioritised by default. The
+API key remains server-side. After a complete window has been recorded, export
+lazy per-feature partitions for the GitHub Pages client:
+
+```bash
+DATABASE_URL="$DATABASE_URL" \
+.venv/bin/python scripts/export_postgis_snapshot.py
+```
+
+The exporter includes only features marked with a complete SOS window. A
+partially downloaded trail or reserve is therefore never published as if it had
+complete observation coverage.
+
 ## Product principles
 
 1. **A walkable place is the unit of discovery.** Points and species become

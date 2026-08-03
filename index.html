@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260803-skandobs-location-v1">
+    <link rel="stylesheet" href="styles.css?v=20260803-halland-table-v2">
   </head>
   <body>
     <header class="app-header">
@@ -180,7 +180,7 @@
         <section id="observation-table-panel" class="observation-table-panel" aria-labelledby="observation-table-title" hidden>
           <div class="observation-table-header">
             <div>
-              <h2 id="observation-table-title" data-i18n="visibleObservationsTitle">Observations in the current map view</h2>
+              <h2 id="observation-table-title">Observations for the selected place</h2>
               <p id="observation-table-summary" class="help-text" aria-live="polite"></p>
             </div>
             <div id="observation-table-pagination" class="table-pagination"></div>
@@ -189,17 +189,25 @@
             <table>
               <thead>
                 <tr>
-                  <th scope="col" data-i18n="observationSpecies">Species</th>
-                  <th scope="col" data-i18n="observationDate">Date</th>
-                  <th scope="col" data-i18n="redListCategory">Red List</th>
-                  <th scope="col" data-i18n="source">Source</th>
+                  <th scope="col" aria-sort="none">
+                    <button class="observation-sort-button" type="button" data-sort="species" data-i18n="observationSpecies">Species</button>
+                  </th>
+                  <th scope="col" aria-sort="descending">
+                    <button class="observation-sort-button" type="button" data-sort="date" data-direction="desc" data-i18n="observationDate">Date</button>
+                  </th>
+                  <th scope="col" aria-sort="none">
+                    <button class="observation-sort-button" type="button" data-sort="redlist" data-i18n="redListCategory">Red List</button>
+                  </th>
+                  <th scope="col" aria-sort="none">
+                    <button class="observation-sort-button" type="button" data-sort="source" data-i18n="source">Source</button>
+                  </th>
                 </tr>
               </thead>
               <tbody id="observation-table-body"></tbody>
             </table>
           </div>
           <p id="observation-table-empty" class="empty-state" data-i18n="noVisibleObservations" hidden>
-            No observations are visible in the current map view.
+            No observations match the selected place and filters.
           </p>
         </section>
       </section>
@@ -219,6 +227,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260803-skandobs-location-v1"></script>
+    <script type="module" src="src/app.js?v=20260803-halland-table-v2"></script>
   </body>
 </html>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Import the generated Halmstad snapshot into the canonical PostGIS schema."""
+"""Import a generated Halland snapshot into the canonical PostGIS schema."""
 
 from __future__ import annotations
 
@@ -50,6 +50,12 @@ def source_ids(connection: psycopg.Connection[Any]) -> dict[str, int]:
             "https://api.artdatabanken.se/",
         ),
         ("osm", "OpenStreetMap", "spatial", "https://www.openstreetmap.org/"),
+        (
+            "nvr",
+            "Naturvårdsregistret / Naturvårdsverket",
+            "spatial",
+            "https://geodata.naturvardsverket.se/naturvardsregistret/",
+        ),
         ("gbif", "Global Biodiversity Information Facility", "taxonomy", "https://www.gbif.org/"),
         ("dyntaxa", "Dyntaxa / SLU Artdatabanken", "taxonomy", "https://www.dyntaxa.se/"),
     )
@@ -145,16 +151,27 @@ def upsert_taxa(
 
 def upsert_features(
     connection: psycopg.Connection[Any],
-    trails: Iterable[dict[str, Any]],
-    osm_source_id: int,
+    features: Iterable[dict[str, Any]],
+    spatial_source_ids: dict[str, int],
     geometry_version: str,
 ) -> None:
-    for trail in trails:
+    for feature in features:
+        source_key, source_feature_id = feature_identity(feature)
+        source_id = spatial_source_ids[source_key]
         properties = {
-            "municipality": trail.get("municipality"),
-            "county": trail.get("county"),
-            "network": trail.get("network"),
-            "operator": trail.get("operator"),
+            key: feature.get(key)
+            for key in (
+                "municipality",
+                "municipalities",
+                "county",
+                "network",
+                "operator",
+                "areaHa",
+                "iucnCategory",
+                "manager",
+                "decisionStatus",
+            )
+            if feature.get(key) is not None
         }
         feature_id = connection.execute(
             """INSERT INTO vildaleder.spatial_feature(
@@ -169,7 +186,7 @@ def upsert_features(
                    properties,
                    geometry_version
                ) VALUES (
-                   'trail', %s, %s, %s, %s,
+                   %s::vildaleder.spatial_feature_kind, %s, %s, %s, %s,
                    ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326),
                    ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326),
                    %s, %s::jsonb, %s
@@ -186,13 +203,14 @@ def upsert_features(
                    updated_at = now()
                RETURNING feature_id""",
             (
-                osm_source_id,
-                str(trail["osmRelationId"]),
-                trail["name"],
-                trail.get("lengthKm"),
-                json.dumps(trail["geometry"], ensure_ascii=False),
-                json.dumps(trail["corridor"], ensure_ascii=False),
-                trail.get("osmUrl"),
+                feature.get("featureKind", "trail"),
+                source_id,
+                source_feature_id,
+                feature["name"],
+                feature.get("lengthKm"),
+                json.dumps(feature["geometry"], ensure_ascii=False),
+                json.dumps(feature["corridor"], ensure_ascii=False),
+                feature.get("sourceUrl") or feature.get("osmUrl"),
                 json.dumps(properties, ensure_ascii=False),
                 geometry_version,
             ),
@@ -204,8 +222,17 @@ def upsert_features(
                ON CONFLICT (feature_id, language_code, name, source_id) DO UPDATE
                SET name_normalized = EXCLUDED.name_normalized,
                    is_preferred = EXCLUDED.is_preferred""",
-            (feature_id, trail["name"], normalized_name(trail["name"]), osm_source_id),
+            (feature_id, feature["name"], normalized_name(feature["name"]), source_id),
         )
+
+
+def feature_identity(feature: dict[str, Any]) -> tuple[str, str]:
+    """Return the spatial source key and its stable feature identifier."""
+    source_key = str(feature.get("source") or "osm")
+    source_feature_id = feature.get("sourceFeatureId", feature.get("osmRelationId"))
+    if source_feature_id is None:
+        raise ValueError(f"Feature {feature.get('id') or feature.get('name')} has no source ID")
+    return source_key, str(source_feature_id)
 
 
 def partition_path(catalog_path: Path, manifest_path: str) -> Path:
@@ -240,6 +267,7 @@ def stage_snapshot(
                latitude double precision NOT NULL,
                longitude double precision NOT NULL,
                coordinate_uncertainty_m double precision,
+               feature_source_key text NOT NULL,
                feature_source_id text NOT NULL
            ) ON COMMIT DROP"""
     )
@@ -248,11 +276,11 @@ def stage_snapshot(
         """COPY import_observation_match(
                source_record_id, taxon_external_id, observed_on, individual_count,
                verified, uncertain_identification, latitude, longitude,
-               coordinate_uncertainty_m, feature_source_id
+               coordinate_uncertainty_m, feature_source_key, feature_source_id
            ) FROM STDIN"""
     ) as copy:
         for trail in trails:
-            feature_source_id = str(trail["osmRelationId"])
+            feature_source_key, feature_source_id = feature_identity(trail)
             for manifest in trail.get("observationFiles", []):
                 partition = load_json(partition_path(catalog_path, manifest["path"]))
                 for record in partition.get("records", []):
@@ -270,6 +298,7 @@ def stage_snapshot(
                             float(record[5]),
                             float(record[6]),
                             number_or_none(record[7]),
+                            feature_source_key,
                             feature_source_id,
                         )
                     )
@@ -287,7 +316,6 @@ def stage_snapshot(
 def import_observations(
     connection: psycopg.Connection[Any],
     sos_source_id: int,
-    osm_source_id: int,
     generated_at: str,
     window_start: str,
     window_end: str,
@@ -320,7 +348,7 @@ def import_observations(
            LEFT JOIN vildaleder.taxon_external_id external
              ON external.source_id = %s
             AND external.external_id = staged.taxon_external_id
-           ORDER BY staged.source_record_id, staged.feature_source_id
+           ORDER BY staged.source_record_id, staged.feature_source_key, staged.feature_source_id
            ON CONFLICT (canonical_key) DO UPDATE
            SET taxon_id = EXCLUDED.taxon_id,
                observed_on = EXCLUDED.observed_on,
@@ -374,14 +402,21 @@ def import_observations(
         """DELETE FROM vildaleder.observation_feature matched
            USING vildaleder.observation observed,
                  vildaleder.observation_source_record source_record,
-                 vildaleder.spatial_feature feature
+                 vildaleder.spatial_feature feature,
+                 vildaleder.data_source feature_source
            WHERE matched.observation_id = observed.observation_id
              AND source_record.observation_id = observed.observation_id
              AND source_record.source_id = %s
              AND matched.feature_id = feature.feature_id
-             AND feature.source_id = %s
+             AND feature.source_id = feature_source.source_id
+             AND EXISTS (
+                 SELECT 1
+                 FROM import_observation_match staged
+                 WHERE staged.feature_source_key = feature_source.source_key
+                   AND staged.feature_source_id = feature.source_feature_id
+             )
              AND observed.observed_on BETWEEN %s::date AND %s::date""",
-        (sos_source_id, osm_source_id, window_start, window_end),
+        (sos_source_id, window_start, window_end),
     )
     matches = connection.execute(
         """INSERT INTO vildaleder.observation_feature(
@@ -401,14 +436,16 @@ def import_observations(
            JOIN vildaleder.observation observed
              ON observed.canonical_key = 'sos:' || staged.source_record_id
            JOIN vildaleder.spatial_feature feature
-             ON feature.source_id = %s
-            AND feature.source_feature_id = staged.feature_source_id
+             ON feature.source_feature_id = staged.feature_source_id
+           JOIN vildaleder.data_source feature_source
+             ON feature_source.source_id = feature.source_id
+            AND feature_source.source_key = staged.feature_source_key
            ON CONFLICT (observation_id, feature_id) DO UPDATE
            SET match_method = EXCLUDED.match_method,
                feature_geometry_version = EXCLUDED.feature_geometry_version,
                matched_at = EXCLUDED.matched_at
            RETURNING observation_id""",
-        (generated_at, osm_source_id),
+        (generated_at,),
     ).rowcount
     return observations, source_records, matches
 
@@ -427,12 +464,11 @@ def build_import(
         connection.execute("SET search_path TO vildaleder, public")
         sources = source_ids(connection)
         taxon_ids = upsert_taxa(connection, index["taxa"], sources["sos"])
-        upsert_features(connection, catalog["trails"], sources["osm"], meta["generatedAt"])
+        upsert_features(connection, catalog["trails"], sources, meta["generatedAt"])
         staged = stage_snapshot(connection, catalog_path, catalog["trails"])
         observations, source_records, matches = import_observations(
             connection,
             sources["sos"],
-            sources["osm"],
             meta["generatedAt"],
             meta["windowStart"],
             meta["windowEnd"],
@@ -467,6 +503,17 @@ def build_import(
                     ("snapshot_generated_at", meta["generatedAt"]),
                     ("snapshot_window_start", meta["windowStart"]),
                     ("snapshot_window_end", meta["windowEnd"]),
+                ),
+            )
+            cursor.executemany(
+                """INSERT INTO vildaleder.metadata(key, value) VALUES (%s, %s)
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
+                (
+                    (
+                        f"sos_complete:{trail['id']}:{meta['windowStart']}:{meta['windowEnd']}",
+                        meta["generatedAt"],
+                    )
+                    for trail in catalog["trails"]
                 ),
             )
         connection.commit()

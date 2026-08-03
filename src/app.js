@@ -39,8 +39,9 @@ const state = {
   loadedSelection: null,
   detailsRequest: 0,
   disabledRedlistCategories: new Set(),
-  visibleTableObservations: [],
+  selectedObjectObservations: [],
   observationTablePage: 0,
+  observationTableSort: { key: "date", direction: "desc" },
   language: initialLanguage(),
   mode: "trail",
   featureKind: "",
@@ -85,11 +86,13 @@ const elements = {
   mapObservationSummary: document.querySelector("#map-observation-summary"),
   redlistFilters: document.querySelector("#redlist-filters"),
   observationTablePanel: document.querySelector("#observation-table-panel"),
+  observationTableTitle: document.querySelector("#observation-table-title"),
   observationTableSummary: document.querySelector("#observation-table-summary"),
   observationTablePagination: document.querySelector("#observation-table-pagination"),
   observationTableScroll: document.querySelector(".observation-table-scroll"),
   observationTableBody: document.querySelector("#observation-table-body"),
   observationTableEmpty: document.querySelector("#observation-table-empty"),
+  observationSortButtons: [...document.querySelectorAll(".observation-sort-button")],
   modeTabs: [...document.querySelectorAll(".mode-tab")],
 };
 
@@ -416,6 +419,7 @@ async function renderTrailDetails() {
   elements.trailDetails.replaceChildren();
   if (!trail) {
     setObservations([]);
+    setObservationTableRows([]);
     renderRedlistFilters([]);
     renderMapObservationSummary(null, 0);
     elements.trailDetails.append(node("p", "empty-state", t("selectTrail")));
@@ -423,6 +427,7 @@ async function renderTrailDetails() {
   }
   if (!trail.observationCoverage) {
     setObservations([]);
+    setObservationTableRows([]);
     renderRedlistFilters([]);
     renderMapObservationSummary(trail, 0);
     renderResolvedTrailDetails(trail, []);
@@ -437,6 +442,7 @@ async function renderTrailDetails() {
   }
 
   setObservations([]);
+  setObservationTableRows([]);
   renderRedlistFilters([]);
   renderMapObservationSummary(trail, 0);
   elements.trailDetails.append(node("p", "empty-state loading-observations", t("loadingTrail")));
@@ -467,6 +473,7 @@ function renderResolvedTrailDetails(trail, observations) {
       !state.disabledRedlistCategories.has(observation.redlistCategory || "unknown"),
   );
   const mappedObservationCount = setObservations(visibleMapObservations) ?? 0;
+  setObservationTableRows(visibleMapObservations);
   renderMapObservationSummary(trail, mappedObservationCount);
   const displayedObservations = state.mode === "species" ? mapObservations : observations;
   const taxa = groupTaxa(displayedObservations);
@@ -525,16 +532,67 @@ function renderResolvedTrailDetails(trail, observations) {
   }
 }
 
-function handleViewportChange(observations) {
-  state.visibleTableObservations = [...observations].sort(
-    (left, right) =>
+function setObservationTableRows(observations) {
+  state.selectedObjectObservations = [...observations];
+  sortObservationTableRows();
+  state.observationTablePage = 0;
+  renderObservationTable();
+}
+
+function observationSortValue(observation, key) {
+  if (key === "redlist") return REDLIST_PRIORITY[observation.redlistCategory] ?? 99;
+  if (key === "species") {
+    return observation.vernacularName || observation.scientificName || "";
+  }
+  if (key === "source") return observation.dataset || "";
+  return observation.date || "";
+}
+
+function sortObservationTableRows() {
+  const { key, direction } = state.observationTableSort;
+  const multiplier = direction === "asc" ? 1 : -1;
+  state.selectedObjectObservations.sort((left, right) => {
+    const leftValue = observationSortValue(left, key);
+    const rightValue = observationSortValue(right, key);
+    const comparison = typeof leftValue === "number"
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue), state.language, {
+          sensitivity: "base",
+          numeric: true,
+        });
+    return (
+      comparison * multiplier ||
       (right.date || "").localeCompare(left.date || "") ||
-      (REDLIST_PRIORITY[left.redlistCategory] ?? 99) -
-        (REDLIST_PRIORITY[right.redlistCategory] ?? 99) ||
-      String(left.vernacularName || left.scientificName || "").localeCompare(
-        String(right.vernacularName || right.scientificName || ""),
-      ),
-  );
+      String(left.id || "").localeCompare(String(right.id || ""))
+    );
+  });
+}
+
+function updateObservationSortHeaders() {
+  elements.observationSortButtons.forEach((button) => {
+    const active = button.dataset.sort === state.observationTableSort.key;
+    const header = button.closest("th");
+    header?.setAttribute(
+      "aria-sort",
+      active
+        ? state.observationTableSort.direction === "asc" ? "ascending" : "descending"
+        : "none",
+    );
+    button.dataset.direction = active ? state.observationTableSort.direction : "";
+  });
+}
+
+function sortObservationTable(key) {
+  const current = state.observationTableSort;
+  if (current.key === key) {
+    current.direction = current.direction === "asc" ? "desc" : "asc";
+  } else {
+    state.observationTableSort = {
+      key,
+      direction: key === "date" ? "desc" : "asc",
+    };
+  }
+  sortObservationTableRows();
   state.observationTablePage = 0;
   renderObservationTable();
 }
@@ -544,7 +602,15 @@ function renderObservationTable() {
   elements.observationTablePanel.hidden = !hasSelection;
   if (!hasSelection) return;
 
-  const observations = state.visibleTableObservations;
+  const selectedObject = state.catalog.trails.find(
+    (feature) => feature.id === state.selectedTrailId,
+  );
+  elements.observationTableTitle.textContent = t("visibleObservationsTitle", {
+    place: selectedObject?.name || "",
+  });
+
+  const observations = state.selectedObjectObservations;
+  updateObservationSortHeaders();
   const pageCount = Math.max(1, Math.ceil(observations.length / OBSERVATION_TABLE_PAGE_SIZE));
   state.observationTablePage = Math.min(state.observationTablePage, pageCount - 1);
   const start = state.observationTablePage * OBSERVATION_TABLE_PAGE_SIZE;
@@ -927,6 +993,9 @@ function bindEvents() {
   elements.locateUser.addEventListener("click", toggleLocationTracking);
   elements.resetFilters.addEventListener("click", resetFilters);
   elements.modeTabs.forEach((tab) => tab.addEventListener("click", () => setMode(tab.dataset.mode)));
+  elements.observationSortButtons.forEach((button) =>
+    button.addEventListener("click", () => sortObservationTable(button.dataset.sort)),
+  );
   elements.featureKind.addEventListener("change", () => {
     state.featureKind = elements.featureKind.value;
     renderAll();
@@ -936,10 +1005,12 @@ function bindEvents() {
     state.county = elements.county.value;
     state.municipality = "";
     renderAll();
+    fitAllTrails(areaTrails());
   });
   elements.municipality.addEventListener("change", () => {
     state.municipality = elements.municipality.value;
     renderAll();
+    fitAllTrails(areaTrails());
   });
   elements.period.addEventListener("change", () => {
     state.period = elements.period.value;
@@ -1038,7 +1109,6 @@ async function start() {
         onTrailClick: selectTrail,
         onObservationClick: (observation, lngLat) =>
           showObservationPopup(observation, lngLat, observationPopup(observation)),
-        onViewportChange: handleViewportChange,
       }),
     ]);
     state.skandobs = skandobs;
