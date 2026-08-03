@@ -25,7 +25,11 @@ class StaticSiteTests(unittest.TestCase):
     def test_all_local_assets_exist(self):
         parser = AssetParser()
         parser.feed((ROOT / "index.html").read_text(encoding="utf-8"))
-        local_assets = [asset for asset in parser.assets if not urlparse(asset).scheme]
+        local_assets = [
+            urlparse(asset).path
+            for asset in parser.assets
+            if not urlparse(asset).scheme
+        ]
         self.assertIn("styles.css", local_assets)
         self.assertIn("src/app.js", local_assets)
         for asset in local_assets:
@@ -40,7 +44,25 @@ class StaticSiteTests(unittest.TestCase):
         self.assertNotIn("api.artdatabanken.se", frontend)
         self.assertIsNone(re.search(r"[a-f0-9]{32}", frontend, flags=re.IGNORECASE))
 
+    def test_map_uses_resilient_maplibre_embedding_and_redlist_layer(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        map_source = (ROOT / "src" / "map.js").read_text(encoding="utf-8")
+        self.assertIn("maplibre-gl@5.11.0", html)
+        self.assertNotIn("leaflet", html.lower())
+        self.assertIn("ResizeObserver", map_source)
+        self.assertIn("forceSeveralMapRefreshes", map_source)
+        self.assertIn('LAYER_OBSERVATIONS = "observations-circle"', map_source)
+        for category in ("CR", "EN", "VU", "NT", "DD", "LC"):
+            self.assertIn(f'{category}: "#', map_source)
+
+    def test_refresh_workflow_uses_named_secret_without_embedding_a_key(self):
+        workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("SOS_SUBSCRIPTION_KEY: ${{ secrets.SOS_SUBSCRIPTION_KEY }}", workflow)
+        self.assertIn('cron: "17 4 * * *"', workflow)
+        self.assertIsNone(re.search(r"[a-f0-9]{32}", workflow, flags=re.IGNORECASE))
+
 
 if __name__ == "__main__":
     unittest.main()
-

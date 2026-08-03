@@ -35,6 +35,11 @@ export const translations = {
     trail: "Trail",
     corridor: "200 m corridor",
     observation: "Observation",
+    redListLegend: "Observation points · Red List",
+    otherCategory: "No category",
+    mapSelectTrail: "Select a trail to show observations on the map.",
+    mapTrailPoints: "{count} observation points on {trail}.",
+    mapSpeciesPoints: "{count} observations of {species} on {trail} — only these points are shown.",
     length: "{value} km",
     lastSeen: "Last seen {date}",
     latest: "Latest: {date}",
@@ -83,6 +88,11 @@ export const translations = {
     trail: "Led",
     corridor: "200 m korridor",
     observation: "Fynd",
+    redListLegend: "Fyndpunkter · Rödlistan",
+    otherCategory: "Ingen kategori",
+    mapSelectTrail: "Välj en led för att visa fynd på kartan.",
+    mapTrailPoints: "{count} fyndpunkter längs {trail}.",
+    mapSpeciesPoints: "{count} fynd av {species} längs {trail} — endast dessa punkter visas.",
     length: "{value} km",
     lastSeen: "Senast sedd {date}",
     latest: "Senaste: {date}",
@@ -131,6 +141,11 @@ export const translations = {
     trail: "Trasa",
     corridor: "Bufor 200 m",
     observation: "Obserwacja",
+    redListLegend: "Punkty obserwacji · Red List",
+    otherCategory: "Brak kategorii",
+    mapSelectTrail: "Wybierz trasę, aby pokazać obserwacje na mapie.",
+    mapTrailPoints: "Punkty obserwacji na trasie {trail}: {count}.",
+    mapSpeciesPoints: "Obserwacje {species} na trasie {trail}: {count} — mapa pokazuje tylko te punkty.",
     length: "{value} km",
     lastSeen: "Ostatnio widziany: {date}",
     latest: "Najnowsza: {date}",
@@ -155,4 +170,3 @@ export function translator(language) {
     );
   };
 }
-
