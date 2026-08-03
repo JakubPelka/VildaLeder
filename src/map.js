@@ -36,6 +36,7 @@ let activePopup;
 let hoverPopup;
 let observationByMarkerId = new Map();
 let callbacks = {};
+let pendingUserLocation = null;
 
 const emptyFeatureCollection = () => ({ type: "FeatureCollection", features: [] });
 
@@ -80,6 +81,11 @@ export function initMap(options = {}) {
       addDataLayers();
       bindMapInteractions();
       mapReady = true;
+      if (pendingUserLocation) {
+        const { position, focus } = pendingUserLocation;
+        pendingUserLocation = null;
+        setUserLocation(position, focus);
+      }
       window.__vildaMapDebug = getMapDebugState;
       forceSeveralMapRefreshes();
       resolve(map);
@@ -504,7 +510,10 @@ function accuracyPolygon(longitude, latitude, accuracyMeters) {
 }
 
 export function setUserLocation(position, focus = false) {
-  if (!mapReady || !map) return;
+  if (!mapReady || !map) {
+    pendingUserLocation = { position, focus };
+    return;
+  }
   const longitude = Number(position?.longitude);
   const latitude = Number(position?.latitude);
   if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return;
@@ -528,6 +537,7 @@ export function setUserLocation(position, focus = false) {
 }
 
 export function clearUserLocation() {
+  pendingUserLocation = null;
   if (!mapReady || !map) return;
   map.getSource(SOURCE_USER_LOCATION).setData(emptyFeatureCollection());
 }

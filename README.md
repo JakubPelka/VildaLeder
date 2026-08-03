@@ -86,8 +86,9 @@ Every municipality membership is retained for filtering. The UI has an explicit
 pending state for partial refreshes rather than reporting a misleading zero. A
 separate ten-year Skandobs snapshot currently adds 74 public wolf/lynx reports matched
 90 times to 55 Halland trails or reserves; these places are explicitly labelled
-as partial Skandobs-only coverage. Area and place-type
-filters are optional. Sweden-wide species discovery (including sparse species
+as partial Skandobs-only coverage. Geographic filters are optional; the map
+starts without object layers and asks the user to choose trails, protected
+areas, observation infrastructure, national parks, or all places. Sweden-wide species discovery (including sparse species
 such as harfågel or järv) requires the Phase 4 data platform described in the
 roadmap.
 
@@ -101,22 +102,22 @@ python3 -m http.server 8000
 ```
 
 Then open <http://localhost:8000>. The interface supports English, Swedish, and
-Polish; place-first and species-first search; optional place-type and
-county/municipality filters; map selection; interactive Red List classes; and day, 30-day, 90-day,
+Polish; place-first and species-first search; an explicit map-layer choice plus
+optional county/municipality filters; map selection; interactive Red List classes; and day, 30-day, 90-day,
 365-day, or custom date ranges within the ten-year snapshot. Counts are computed
 from daily aggregates and therefore change with every selected date range.
 The custom search range is capped at the most recent ten years. Overlapping
-observation coordinates are clustered with their record count, and
-the paginated table below the map lists observations for the selected place;
-selecting a row zooms to the record and opens its evidence popup. Custom date
+observation coordinates are clustered with their record count. The sortable
+panel below the map groups the selected place's observations into one row per
+species, with count and last-seen date; expanding a species reveals weekly
+seasonality and every underlying source record, and selecting a date zooms to
+the point. Custom date
 inputs are shown only after selecting the custom-period preset, and editing
 either date always activates that preset. The map's location control displays
 the user's browser-provided position and accuracy, then refreshes the marker
 every two seconds until tracking is stopped.
-Place-first results group repeated observations into one row per taxon, ordered
-by Red List priority. Each row shows its count and most recent date and can be
-expanded into an ISO-week seasonality chart and recent-record explorer. In the
-opposite journey, a species search shows the same weekly chart for all matching
+Place-first details are shown once in that panel rather than duplicated in the
+sidebar. In the opposite journey, a species search shows the same weekly chart for all matching
 public observations in the active area and selected time range, then recalculates
 it for a selected place.
 Species-first search loads a bucketed, time-partitioned SOS point index and
@@ -127,7 +128,8 @@ narrows the map and table to that object's matches. Scattered observations
 outside all supported destination buffers are intentionally not included.
 Hovering a destination on the map shows its name. Clicking it selects the
 place and opens a compact source card with its municipality, size or analysis
-buffer, source description, and an OSM, Skyddad natur, or Naturvårdsverket link.
+buffer, source description, navigation/share actions, and an OSM, Skyddad natur,
+or Naturvårdsverket link. The map legend can be collapsed.
 On desktop, drag the separator between the map and table to choose how much room
 each view receives. Arrow keys resize it for keyboard users, double-click resets
 the default 75/25 split, and the preference is retained in the browser.
@@ -170,10 +172,14 @@ of history while the browser still offers at most the most recent ten years.
 Historical removal is reserved for explicit source corrections, withdrawals,
 privacy requirements, or a separately approved retention policy.
 
-The export includes both place-oriented partitions and a second deduplicated
-species-point index. The latter uses 256 stable taxon buckets, small time
-partitions, and compact feature ordinals so a species map respects län/kommun
-and place-type filters without downloading every selected place's full history.
+The export includes place-oriented partitions and a second deduplicated
+species-point index. The browser bootstrap contains only taxon metadata and
+manifests; daily place aggregates are split by place type and taxon rankings
+use 256 stable buckets. The client downloads a place aggregate only after the
+user enables that layer and one small taxon-ranking bucket only after a species
+is resolved. Species point evidence remains time-partitioned with compact
+feature ordinals, so a species map respects län/kommun and place-type filters
+without downloading every selected place's full history.
 
 On the always-on server, install the checked-in user timer and put only local
 paths and non-secret tuning values in its ignored environment file:

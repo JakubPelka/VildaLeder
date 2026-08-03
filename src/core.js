@@ -66,10 +66,24 @@ export function observationFilesForRange(trail, range) {
   );
 }
 
+const OBSERVATION_INFRASTRUCTURE = new Set([
+  "bird_hide",
+  "observation_tower",
+  "observation_site",
+]);
+
+export function matchesFeatureKind(featureKind, selectedKind) {
+  if (selectedKind === "all") return true;
+  if (selectedKind === "observation_infrastructure") {
+    return OBSERVATION_INFRASTRUCTURE.has(featureKind);
+  }
+  return Boolean(selectedKind) && featureKind === selectedKind;
+}
+
 export function filteredTrails(trails, filters) {
   const query = normalize(filters.query);
   return trails.filter((trail) => {
-    if (filters.featureKind && trail.featureKind !== filters.featureKind) return false;
+    if (!matchesFeatureKind(trail.featureKind, filters.featureKind)) return false;
     if (filters.county && trail.county !== filters.county) return false;
     const municipalities = trail.municipalities || [trail.municipality].filter(Boolean);
     if (filters.municipality && !municipalities.includes(filters.municipality)) return false;
@@ -211,8 +225,10 @@ export function resolveSpecies(catalog, query) {
 
 export function indexedTrailStats(searchIndex, trailId, range) {
   let species = 0;
-  for (const taxon of searchIndex.taxa || []) {
-    if (countDated(taxon.trails?.[trailId], range) > 0) species += 1;
+  if (!searchIndex.taxaRankingsLazy) {
+    for (const taxon of searchIndex.taxa || []) {
+      if (countDated(taxon.trails?.[trailId], range) > 0) species += 1;
+    }
   }
   return {
     observations: countDated(searchIndex.trails?.[trailId], range),
@@ -223,9 +239,11 @@ export function indexedTrailStats(searchIndex, trailId, range) {
 export function rankTrailsForSpecies(trails, species, range, searchIndex) {
   if (!species) return [];
   if (searchIndex) {
-    const indexedSpecies = (searchIndex.taxa || []).find(
-      (candidate) => String(candidate.taxonId) === String(species.taxonId),
-    );
+    const indexedSpecies = species.trails
+      ? species
+      : (searchIndex.taxa || []).find(
+          (candidate) => String(candidate.taxonId) === String(species.taxonId),
+        );
     if (!indexedSpecies) return [];
     return trails
       .map((trail) => ({

@@ -19,8 +19,10 @@ import psycopg
 
 try:
     from scripts.refresh_data import OBSERVATION_FIELDS, partition_name
+    from scripts.split_search_index import write_search_bundle
 except ModuleNotFoundError:  # Direct execution adds scripts/ rather than the repository root.
     from refresh_data import OBSERVATION_FIELDS, partition_name  # type: ignore[no-redef]
+    from split_search_index import write_search_bundle  # type: ignore[no-redef]
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +34,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--features", type=Path, default=ROOT / "data" / "features.json")
     parser.add_argument("--catalog", type=Path, default=ROOT / "data" / "catalog.json")
     parser.add_argument("--search-index", type=Path, default=ROOT / "data" / "search-index.json")
+    parser.add_argument(
+        "--place-rankings-dir",
+        type=Path,
+        default=ROOT / "data" / "place-rankings",
+    )
+    parser.add_argument(
+        "--species-rankings-dir",
+        type=Path,
+        default=ROOT / "data" / "species-rankings",
+    )
     parser.add_argument("--observations-dir", type=Path, default=ROOT / "data" / "observations")
     parser.add_argument(
         "--species-observations-dir",
@@ -461,7 +473,13 @@ def export(args: argparse.Namespace) -> dict[str, int]:
         temporary_root.replace(args.observations_dir)
         temporary_species_root.replace(args.species_observations_dir)
         write_json(args.catalog, catalog)
-        write_json(args.search_index, index_data)
+        write_search_bundle(
+            index_data,
+            feature_catalog["features"],
+            args.search_index,
+            args.place_rankings_dir,
+            args.species_rankings_dir,
+        )
     except Exception:
         if args.observations_dir.exists():
             shutil.rmtree(args.observations_dir)

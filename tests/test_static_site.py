@@ -72,13 +72,10 @@ class StaticSiteTests(unittest.TestCase):
         translations = (ROOT / "src" / "i18n.js").read_text(encoding="utf-8")
         self.assertIn('id="feature-kind"', html)
         self.assertIn('value="reserve"', html)
-        for feature_kind in (
-            "national_park",
-            "observation_tower",
-            "bird_hide",
-            "observation_site",
-        ):
-            self.assertIn(f'value="{feature_kind}"', html)
+        self.assertIn('value="national_park"', html)
+        self.assertIn('value="observation_infrastructure"', html)
+        self.assertIn('value="all"', html)
+        self.assertNotIn('value="observation_tower"', html)
         self.assertIn('id="reset-filters"', html)
         self.assertIn('loadJson("data/features.json"', app)
         self.assertIn('loadJson("data/skandobs.json"', app)
@@ -133,7 +130,7 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("setObservationTableRows(visibleMapObservations)", app)
         self.assertNotIn("onViewportChange: handleViewportChange", app)
         self.assertIn('data-sort="redlist"', html)
-        self.assertIn("REDLIST_PRIORITY[observation.redlistCategory]", app)
+        self.assertIn("REDLIST_PRIORITY[taxon.redlistCategory]", app)
         self.assertIn("sortObservationTable", app)
         self.assertIn("focusObservation(observation)", app)
         self.assertIn("OBSERVATION_TABLE_PAGE_SIZE", app)
@@ -162,13 +159,32 @@ class StaticSiteTests(unittest.TestCase):
         app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
         core = (ROOT / "src" / "core.js").read_text(encoding="utf-8")
         styles = (ROOT / "styles.css").read_text(encoding="utf-8")
-        self.assertIn('node("details", "taxon-row")', app)
-        self.assertIn('node("summary", "taxon-summary")', app)
+        self.assertIn('node("tr", "observation-group-row")', app)
+        self.assertIn('node("tr", "observation-details-row")', app)
+        self.assertIn("expandedObservationTaxa", app)
         self.assertIn("taxon.observations", app)
         self.assertIn("weeklySeasonality(observations)", app)
-        self.assertIn('t("showAllSpecies"', app)
+        self.assertIn("observationRecordItem", app)
         self.assertIn("export function weeklySeasonality", core)
         self.assertIn("seasonality-chart", styles)
+
+    def test_new_issue_controls_are_wired_without_blocking_startup(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        core = (ROOT / "src" / "core.js").read_text(encoding="utf-8")
+        map_source = (ROOT / "src" / "map.js").read_text(encoding="utf-8")
+        self.assertIn('<details class="map-key">', html)
+        self.assertIn('class="locate-user-icon"', html)
+        self.assertIn('id="locate-user" class="locate-user" type="button" aria-pressed="false" disabled', html)
+        self.assertIn('id="trail-details-home"', html)
+        self.assertIn("appendLocationActions", app)
+        self.assertIn("navigator.share", app)
+        self.assertIn("fitCurrentAreaAfterRender", app)
+        self.assertIn("loadPlaceRankingsForSelection", app)
+        self.assertIn("speciesWithRankings", app)
+        self.assertIn("suggestions.length >= 15", app)
+        self.assertIn("matchesFeatureKind", core)
+        self.assertIn("pendingUserLocation", map_source)
 
     def test_refresh_is_owned_by_the_local_server_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
