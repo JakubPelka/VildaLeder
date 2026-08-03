@@ -7,6 +7,26 @@ applications with optional paid features.
 The phases are ordered by dependency rather than by calendar date. A phase is
 complete only when its exit criteria are met.
 
+## Current implementation status — August 2026
+
+The repository now contains a working vertical slice spanning parts of phases
+0–3:
+
+- five real OSM hiking routes in Halmstads kommun;
+- metric 200-metre corridors generated in SWEREF 99 TM;
+- 365 days of paginated, deduplicated public Artportalen/SOS observations;
+- Red List category ordering from the SOS observation payload;
+- trail-first and species-first (`havsörn` included) journeys;
+- English, Swedish, and Polish interface dictionaries;
+- day, month, quarter, year, and inclusive custom date filters;
+- browser, geometry, catalog-integrity, privacy, and static-asset checks;
+- CI and GitHub Pages deployment workflows.
+
+This is a functional pilot, not completion of the phases. The most important
+open gates are explicit Red List 2025 provenance, multilingual taxon names,
+administrative coverage beyond Halmstad, shareable URL state, production map
+tiles, licensing review, and scheduled refresh credentials.
+
 ## Delivery principles
 
 - Start with a narrow geographic pilot and real data.
