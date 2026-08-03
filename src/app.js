@@ -10,9 +10,16 @@ import {
   speciesLabel,
 } from "./core.js";
 import { translations, translator } from "./i18n.js";
+import {
+  fitAllTrails,
+  fitTrail,
+  initMap,
+  setObservations,
+  setTrails,
+  showObservationPopup,
+} from "./map.js";
 
 const MAX_TAXA_SHOWN = 100;
-const MAX_MAP_OBSERVATIONS = 700;
 
 const state = {
   catalog: null,
@@ -48,18 +55,9 @@ const elements = {
   trailResults: document.querySelector("#trail-results"),
   speciesResults: document.querySelector("#species-results"),
   trailDetails: document.querySelector("#trail-details"),
+  mapObservationSummary: document.querySelector("#map-observation-summary"),
   modeTabs: [...document.querySelectorAll(".mode-tab")],
 };
-
-const map = L.map("map", { zoomControl: true }).setView([56.68, 12.95], 10);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-}).addTo(map);
-const corridorLayer = L.geoJSON(null).addTo(map);
-const trailLayer = L.geoJSON(null).addTo(map);
-const observationLayer = L.layerGroup().addTo(map);
-const trailLayers = new Map();
 
 function initialLanguage() {
   const saved = localStorage.getItem("vildaleder-language");
@@ -249,13 +247,23 @@ function renderSpeciesResults() {
 function renderTrailDetails() {
   elements.trailDetails.replaceChildren();
   const trail = state.catalog.trails.find((candidate) => candidate.id === state.selectedTrailId);
-  observationLayer.clearLayers();
   if (!trail) {
+    setObservations([]);
+    renderMapObservationSummary(null, 0);
     elements.trailDetails.append(node("p", "empty-state", t("selectTrail")));
     return;
   }
   const observations = filterObservations(trail.observations, currentRange());
-  const taxa = groupTaxa(observations);
+  const mapObservations = state.mode === "species"
+    ? observations.filter(
+        (observation) =>
+          state.selectedSpecies && observation.taxonId === state.selectedSpecies.taxonId,
+      )
+    : observations;
+  const mappedObservationCount = setObservations(mapObservations) ?? 0;
+  renderMapObservationSummary(trail, mappedObservationCount);
+  const displayedObservations = state.mode === "species" ? mapObservations : observations;
+  const taxa = groupTaxa(displayedObservations);
   const header = node("div", "details-header");
   header.append(node("h2", "", trail.name));
   header.append(
@@ -264,7 +272,7 @@ function renderTrailDetails() {
       "details-meta",
       `${trail.municipality}, ${trail.county} · ${t("length", { value: trail.lengthKm })} · ${t(
         "observations",
-        { count: formatNumber(observations.length) },
+        { count: formatNumber(displayedObservations.length) },
       )} · ${t("species", { count: formatNumber(taxa.length) })}`,
     ),
   );
@@ -296,7 +304,6 @@ function renderTrailDetails() {
       );
     }
   }
-  addObservationMarkers(observations);
 }
 
 function taxonRow(taxon) {
@@ -316,21 +323,23 @@ function taxonRow(taxon) {
   return row;
 }
 
-function addObservationMarkers(observations) {
-  const selected = state.mode === "species" && state.selectedSpecies
-    ? observations.filter((observation) => observation.taxonId === state.selectedSpecies.taxonId)
-    : observations;
-  selected.slice(0, MAX_MAP_OBSERVATIONS).forEach((observation) => {
-    if (!Number.isFinite(observation.latitude) || !Number.isFinite(observation.longitude)) return;
-    const marker = L.circleMarker([observation.latitude, observation.longitude], {
-      radius: 4,
-      color: "#fff",
-      weight: 1.5,
-      fillColor: "#e2842c",
-      fillOpacity: 0.86,
+function renderMapObservationSummary(trail, count) {
+  elements.mapObservationSummary.dataset.count = String(count);
+  if (!trail) {
+    elements.mapObservationSummary.textContent = t("mapSelectTrail");
+    return;
+  }
+  if (state.mode === "species" && state.selectedSpecies) {
+    elements.mapObservationSummary.textContent = t("mapSpeciesPoints", {
+      count: formatNumber(count),
+      species: speciesLabel(state.selectedSpecies),
+      trail: trail.name,
     });
-    marker.bindPopup(() => observationPopup(observation));
-    marker.addTo(observationLayer);
+    return;
+  }
+  elements.mapObservationSummary.textContent = t("mapTrailPoints", {
+    count: formatNumber(count),
+    trail: trail.name,
   });
 }
 
@@ -357,46 +366,18 @@ function observationPopup(observation) {
 }
 
 function drawMap() {
-  corridorLayer.clearLayers();
-  trailLayer.clearLayers();
-  trailLayers.clear();
-  const bounds = [];
-  state.catalog.trails.forEach((trail) => {
-    const corridor = L.geoJSON(trail.corridor, {
-      style: { color: "#176b48", weight: 1, fillOpacity: 0.08, opacity: 0.35 },
-      interactive: false,
-    });
-    corridor.eachLayer((layer) => corridorLayer.addLayer(layer));
-    const line = L.geoJSON(trail.geometry, {
-      style: { color: "#176b48", weight: 4, opacity: 0.82 },
-    });
-    line.eachLayer((layer) => {
-      layer.on("click", () => selectTrail(trail.id));
-      layer.bindTooltip(trail.name, { sticky: true });
-      trailLayer.addLayer(layer);
-      bounds.push(layer.getBounds());
-    });
-    trailLayers.set(trail.id, line);
-  });
-  if (bounds.length) {
-    const combined = bounds.reduce((result, current) => result.extend(current), bounds[0]);
-    map.fitBounds(combined, { padding: [20, 20] });
-  }
+  const visibleIds = areaTrails().map((trail) => trail.id);
+  setTrails(state.catalog.trails, visibleIds, state.selectedTrailId);
+  fitAllTrails(areaTrails());
 }
 
 function updateMapStyles() {
   if (!state.catalog) return;
-  const visibleIds = new Set(areaTrails().map((trail) => trail.id));
-  trailLayer.eachLayer((layer) => {
-    const trail = state.catalog.trails.find((candidate) => layer.getTooltip()?.getContent() === candidate.name);
-    if (!trail) return;
-    const isSelected = trail.id === state.selectedTrailId;
-    layer.setStyle({
-      color: isSelected ? "#d56a13" : "#176b48",
-      weight: isSelected ? 7 : 4,
-      opacity: visibleIds.has(trail.id) ? (isSelected ? 1 : 0.82) : 0.12,
-    });
-  });
+  setTrails(
+    state.catalog.trails,
+    areaTrails().map((trail) => trail.id),
+    state.selectedTrailId,
+  );
 }
 
 function selectTrail(trailId) {
@@ -405,11 +386,7 @@ function selectTrail(trailId) {
   renderSpeciesResults();
   renderTrailDetails();
   updateMapStyles();
-  const layer = [...trailLayer.getLayers()].find((candidate) => {
-    const trail = state.catalog.trails.find((item) => item.id === trailId);
-    return candidate.getTooltip()?.getContent() === trail?.name;
-  });
-  if (layer) map.fitBounds(layer.getBounds(), { padding: [35, 35], maxZoom: 14 });
+  fitTrail(state.catalog.trails.find((trail) => trail.id === trailId));
   if (window.innerWidth <= 800) document.querySelector(".sidebar").scrollIntoView({ behavior: "smooth" });
 }
 
@@ -475,7 +452,15 @@ async function start() {
   applyLanguage();
   bindEvents();
   try {
-    state.catalog = await loadCatalog();
+    const [catalog] = await Promise.all([
+      loadCatalog(),
+      initMap({
+        onTrailClick: selectTrail,
+        onObservationClick: (observation, lngLat) =>
+          showObservationPopup(observation, lngLat, observationPopup(observation)),
+      }),
+    ]);
+    state.catalog = catalog;
     elements.dateFrom.min = state.catalog.meta.windowStart;
     elements.dateFrom.max = state.catalog.meta.windowEnd;
     elements.dateFrom.value = state.catalog.meta.windowStart;
@@ -496,4 +481,3 @@ async function start() {
 }
 
 start();
-

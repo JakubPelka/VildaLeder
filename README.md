@@ -169,14 +169,15 @@ hosting platform for a future commercial SaaS or subscription backend.
 ## Implemented pilot stack
 
 - Web: standards-based HTML, CSS, and JavaScript modules with no build step.
-- Map: Leaflet 1.9.4 and the standard OpenStreetMap tile service for limited MVP
-  testing only.
+- Map: MapLibre GL JS 5.11 with an OSM raster source, resilient resize handling,
+  GPU-rendered trail/corridor layers, and clickable Red List observation points.
 - Localisation: checked-in UI dictionaries for `en`, `sv`, and `pl`.
 - Spatial processing: Python, Shapely, and pyproj; corridors are calculated in
   SWEREF 99 TM (`EPSG:3006`) and exported as WGS84 GeoJSON.
 - Data: route relations from OSM/Overpass and public Artportalen observations
   from SLU SOS, stored as a compact static JSON catalog.
-- Automation: Python contract tests, CI, and a GitHub Pages workflow.
+- Automation: Python contract tests, CI, a daily SOS/OSM snapshot refresh using a
+  GitHub Actions secret, and a GitHub Pages workflow.
 
 This deliberately low-complexity frontend proves the two core journeys. React,
 TypeScript, MapLibre, partitioned data, and a dedicated tile provider remain
@@ -305,6 +306,8 @@ path from data discovery to web MVP and native mobile applications.
 
 ## Licence
 
-No project-code licence has been selected yet. Choosing one is a discovery
-milestone because code licensing and the attribution/share-alike obligations of
-source datasets are separate decisions.
+Project code is licensed under the [Apache License 2.0](LICENSE). It permits
+open use, modification, distribution, and commercial use while retaining
+copyright, licence, and notice obligations. This code licence does not replace
+the separate attribution and downstream obligations of OSM, Artportalen/SOS, or
+other source datasets.

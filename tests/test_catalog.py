@@ -60,7 +60,17 @@ class CatalogTests(unittest.TestCase):
         }
         self.assertTrue({"CR", "EN", "VU", "NT"}.issubset(categories))
 
+    def test_bivrak_can_be_filtered_on_prins_bertils_stig(self):
+        trail = next(trail for trail in self.catalog["trails"] if trail["name"] == "Prins Bertils stig")
+        observations = [
+            observation
+            for observation in trail["observations"]
+            if observation["taxonId"] == 100100
+        ]
+        self.assertGreater(len(observations), 0)
+        self.assertEqual({observation["scientificName"] for observation in observations}, {"Pernis apivorus"})
+        self.assertEqual({observation["redlistCategory"] for observation in observations}, {"NT"})
+
 
 if __name__ == "__main__":
     unittest.main()
-
