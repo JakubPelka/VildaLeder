@@ -64,6 +64,21 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("state.partitionCache", app)
         self.assertIn("disabledRedlistCategories", app)
 
+    def test_map_clusters_overlapping_points_and_observation_table_tracks_viewport(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        map_source = (ROOT / "src" / "map.js").read_text(encoding="utf-8")
+        self.assertIn("cluster: true", map_source)
+        self.assertIn('LAYER_OBSERVATION_CLUSTERS = "observations-clusters"', map_source)
+        self.assertIn("point_count_abbreviated", map_source)
+        self.assertIn("getClusterExpansionZoom", map_source)
+        self.assertIn("getVisibleObservations", map_source)
+        self.assertIn('id="observation-table-panel"', html)
+        self.assertIn('id="observation-table-body"', html)
+        self.assertIn("onViewportChange: handleViewportChange", app)
+        self.assertIn("focusObservation(observation)", app)
+        self.assertIn("OBSERVATION_TABLE_PAGE_SIZE", app)
+
     def test_refresh_workflow_uses_named_secret_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
             encoding="utf-8"

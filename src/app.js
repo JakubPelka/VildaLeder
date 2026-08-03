@@ -16,6 +16,7 @@ import { translations, translator } from "./i18n.js";
 import {
   fitAllTrails,
   fitTrail,
+  focusObservation,
   initMap,
   setObservations,
   setTrails,
@@ -23,6 +24,7 @@ import {
 } from "./map.js";
 
 const MAX_TAXA_SHOWN = 100;
+const OBSERVATION_TABLE_PAGE_SIZE = 100;
 
 const state = {
   catalog: null,
@@ -32,6 +34,8 @@ const state = {
   loadedSelection: null,
   detailsRequest: 0,
   disabledRedlistCategories: new Set(),
+  visibleTableObservations: [],
+  observationTablePage: 0,
   language: initialLanguage(),
   mode: "trail",
   county: "",
@@ -66,6 +70,12 @@ const elements = {
   trailDetails: document.querySelector("#trail-details"),
   mapObservationSummary: document.querySelector("#map-observation-summary"),
   redlistFilters: document.querySelector("#redlist-filters"),
+  observationTablePanel: document.querySelector("#observation-table-panel"),
+  observationTableSummary: document.querySelector("#observation-table-summary"),
+  observationTablePagination: document.querySelector("#observation-table-pagination"),
+  observationTableScroll: document.querySelector(".observation-table-scroll"),
+  observationTableBody: document.querySelector("#observation-table-body"),
+  observationTableEmpty: document.querySelector("#observation-table-empty"),
   modeTabs: [...document.querySelectorAll(".mode-tab")],
 };
 
@@ -181,6 +191,7 @@ function renderAll() {
   renderTrailResults();
   renderSpeciesResults();
   void renderTrailDetails();
+  renderObservationTable();
   updateMapStyles();
 }
 
@@ -402,6 +413,132 @@ function renderResolvedTrailDetails(trail, observations) {
   }
 }
 
+function handleViewportChange(observations) {
+  state.visibleTableObservations = [...observations].sort(
+    (left, right) =>
+      (right.date || "").localeCompare(left.date || "") ||
+      (REDLIST_PRIORITY[left.redlistCategory] ?? 99) -
+        (REDLIST_PRIORITY[right.redlistCategory] ?? 99) ||
+      String(left.vernacularName || left.scientificName || "").localeCompare(
+        String(right.vernacularName || right.scientificName || ""),
+      ),
+  );
+  state.observationTablePage = 0;
+  renderObservationTable();
+}
+
+function renderObservationTable() {
+  const hasSelection = Boolean(state.catalog && state.selectedTrailId);
+  elements.observationTablePanel.hidden = !hasSelection;
+  if (!hasSelection) return;
+
+  const observations = state.visibleTableObservations;
+  const pageCount = Math.max(1, Math.ceil(observations.length / OBSERVATION_TABLE_PAGE_SIZE));
+  state.observationTablePage = Math.min(state.observationTablePage, pageCount - 1);
+  const start = state.observationTablePage * OBSERVATION_TABLE_PAGE_SIZE;
+  const pageObservations = observations.slice(start, start + OBSERVATION_TABLE_PAGE_SIZE);
+
+  elements.observationTableBody.replaceChildren();
+  elements.observationTablePagination.replaceChildren();
+  elements.observationTableEmpty.hidden = observations.length > 0;
+  elements.observationTableScroll.hidden = observations.length === 0;
+
+  if (!observations.length) {
+    elements.observationTableSummary.textContent = t("visibleObservationCount", { count: 0 });
+    return;
+  }
+
+  elements.observationTableSummary.textContent = t("visibleObservationRange", {
+    from: formatNumber(start + 1),
+    to: formatNumber(start + pageObservations.length),
+    count: formatNumber(observations.length),
+  });
+  pageObservations.forEach((observation) =>
+    elements.observationTableBody.append(observationTableRow(observation)),
+  );
+
+  if (pageCount > 1) {
+    const previous = node("button", "table-page-button", t("previousPage"));
+    previous.type = "button";
+    previous.disabled = state.observationTablePage === 0;
+    previous.addEventListener("click", () => {
+      state.observationTablePage -= 1;
+      renderObservationTable();
+    });
+    const page = node(
+      "span",
+      "table-page-status",
+      t("pageOf", {
+        page: formatNumber(state.observationTablePage + 1),
+        pages: formatNumber(pageCount),
+      }),
+    );
+    const next = node("button", "table-page-button", t("nextPage"));
+    next.type = "button";
+    next.disabled = state.observationTablePage >= pageCount - 1;
+    next.addEventListener("click", () => {
+      state.observationTablePage += 1;
+      renderObservationTable();
+    });
+    elements.observationTablePagination.append(previous, page, next);
+  }
+}
+
+function observationTableRow(observation) {
+  const row = document.createElement("tr");
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  const label = observation.vernacularName || observation.scientificName || t("observation");
+  row.setAttribute(
+    "aria-label",
+    t("zoomToObservation", { species: label, date: formatDate(observation.date) }),
+  );
+
+  const speciesCell = document.createElement("td");
+  speciesCell.append(node("span", "observation-species-name", label));
+  if (observation.scientificName && observation.scientificName !== observation.vernacularName) {
+    speciesCell.append(node("span", "scientific-name", observation.scientificName));
+  }
+  const dateCell = node("td", "", formatDate(observation.date));
+  const categoryCell = document.createElement("td");
+  const category = observation.redlistCategory || "unknown";
+  const badge = node(
+    "span",
+    "redlist-badge",
+    category === "unknown" ? t("unknownCategory") : category,
+  );
+  badge.dataset.category = category;
+  categoryCell.append(badge);
+  const sourceCell = document.createElement("td");
+  if (observation.sourceUrl) {
+    const link = node("a", "", observation.dataset || t("openObservation"));
+    link.href = observation.sourceUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.addEventListener("click", (event) => event.stopPropagation());
+    sourceCell.append(link);
+  } else {
+    sourceCell.textContent = observation.dataset || "—";
+  }
+  row.append(speciesCell, dateCell, categoryCell, sourceCell);
+
+  const focus = () => {
+    focusObservation(observation);
+    showObservationPopup(
+      observation,
+      [observation.longitude, observation.latitude],
+      observationPopup(observation),
+    );
+  };
+  row.addEventListener("click", focus);
+  row.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    focus();
+  });
+  return row;
+}
+
 function renderRedlistFilters(observations) {
   elements.redlistFilters.replaceChildren();
   const counts = new Map();
@@ -604,6 +741,7 @@ async function start() {
         onTrailClick: selectTrail,
         onObservationClick: (observation, lngLat) =>
           showObservationPopup(observation, lngLat, observationPopup(observation)),
+        onViewportChange: handleViewportChange,
       }),
     ]);
     state.catalog = catalog;

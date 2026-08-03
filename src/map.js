@@ -4,6 +4,8 @@ const SOURCE_OBSERVATIONS = "observations";
 const LAYER_CORRIDORS = "trail-corridors-fill";
 const LAYER_CORRIDOR_OUTLINES = "trail-corridors-outline";
 const LAYER_TRAILS = "trails-line";
+const LAYER_OBSERVATION_CLUSTERS = "observations-clusters";
+const LAYER_OBSERVATION_CLUSTER_COUNT = "observations-cluster-count";
 const LAYER_OBSERVATIONS = "observations-circle";
 
 export const REDLIST_COLORS = Object.freeze({
@@ -42,9 +44,11 @@ export function initMap(options = {}) {
     touchPitch: false,
     center: [12.95, 56.68],
     zoom: 10,
+    maxZoom: 20,
     attributionControl: true,
     style: {
       version: 8,
+      glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
       sources: {
         osm: {
           type: "raster",
@@ -93,6 +97,10 @@ function addDataLayers() {
     type: "geojson",
     data: emptyFeatureCollection(),
     promoteId: "markerId",
+    cluster: true,
+    clusterRadius: 44,
+    clusterMaxZoom: 20,
+    maxzoom: 21,
   });
 
   map.addLayer({
@@ -140,9 +148,60 @@ function addDataLayers() {
     },
   });
   map.addLayer({
+    id: LAYER_OBSERVATION_CLUSTERS,
+    type: "circle",
+    source: SOURCE_OBSERVATIONS,
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-color": [
+        "step",
+        ["get", "point_count"],
+        "#176b48",
+        10,
+        "#0f5c48",
+        50,
+        "#174b66",
+        250,
+        "#303b70",
+      ],
+      "circle-radius": [
+        "step",
+        ["get", "point_count"],
+        16,
+        10,
+        20,
+        50,
+        24,
+        250,
+        29,
+      ],
+      "circle-opacity": 0.92,
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-width": 2,
+    },
+  });
+  map.addLayer({
+    id: LAYER_OBSERVATION_CLUSTER_COUNT,
+    type: "symbol",
+    source: SOURCE_OBSERVATIONS,
+    filter: ["has", "point_count"],
+    layout: {
+      "text-field": ["get", "point_count_abbreviated"],
+      "text-font": ["Open Sans Semibold"],
+      "text-size": 12,
+      "text-allow-overlap": true,
+    },
+    paint: {
+      "text-color": "#ffffff",
+      "text-halo-color": "rgba(0, 0, 0, 0.22)",
+      "text-halo-width": 0.5,
+    },
+  });
+  map.addLayer({
     id: LAYER_OBSERVATIONS,
     type: "circle",
     source: SOURCE_OBSERVATIONS,
+    filter: ["!", ["has", "point_count"]],
     paint: {
       "circle-color": redlistColorExpression(),
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 7, 2.5, 11, 4.5, 15, 7],
@@ -163,10 +222,23 @@ function redlistColorExpression() {
 }
 
 function bindMapInteractions() {
-  map.on("click", (event) => {
+  map.on("click", async (event) => {
     const features = map.queryRenderedFeatures(event.point, {
-      layers: [LAYER_OBSERVATIONS, LAYER_TRAILS],
+      layers: [LAYER_OBSERVATION_CLUSTERS, LAYER_OBSERVATIONS, LAYER_TRAILS],
     });
+    const clusterFeature = features.find(
+      (feature) => feature.layer.id === LAYER_OBSERVATION_CLUSTERS,
+    );
+    if (clusterFeature) {
+      const clusterId = Number(clusterFeature.properties.cluster_id);
+      const source = map.getSource(SOURCE_OBSERVATIONS);
+      const expansionZoom = await source.getClusterExpansionZoom(clusterId);
+      map.easeTo({
+        center: clusterFeature.geometry.coordinates,
+        zoom: Math.min(expansionZoom, map.getMaxZoom()),
+      });
+      return;
+    }
     const observationFeature = features.find((feature) => feature.layer.id === LAYER_OBSERVATIONS);
     if (observationFeature) {
       const observation = observationByMarkerId.get(String(observationFeature.properties.markerId));
@@ -177,7 +249,7 @@ function bindMapInteractions() {
     if (trailFeature) callbacks.onTrailClick?.(trailFeature.properties.trailId);
   });
 
-  [LAYER_OBSERVATIONS, LAYER_TRAILS].forEach((layerId) => {
+  [LAYER_OBSERVATION_CLUSTERS, LAYER_OBSERVATIONS, LAYER_TRAILS].forEach((layerId) => {
     map.on("mouseenter", layerId, () => {
       map.getCanvas().style.cursor = "pointer";
     });
@@ -185,6 +257,8 @@ function bindMapInteractions() {
       map.getCanvas().style.cursor = "";
     });
   });
+
+  map.on("moveend", notifyViewportChange);
 }
 
 export function setTrails(trails, visibleTrailIds, selectedTrailId) {
@@ -237,7 +311,32 @@ export function setObservations(observations) {
     });
   });
   map.getSource(SOURCE_OBSERVATIONS).setData({ type: "FeatureCollection", features });
+  notifyViewportChange();
   return features.length;
+}
+
+export function getVisibleObservations() {
+  if (!mapReady || !map) return [];
+  const bounds = map.getBounds();
+  return [...observationByMarkerId.values()].filter(
+    (observation) =>
+      Number.isFinite(observation.latitude) &&
+      Number.isFinite(observation.longitude) &&
+      bounds.contains([observation.longitude, observation.latitude]),
+  );
+}
+
+function notifyViewportChange() {
+  callbacks.onViewportChange?.(getVisibleObservations());
+}
+
+export function focusObservation(observation) {
+  if (!mapReady || !map) return;
+  if (!Number.isFinite(observation?.latitude) || !Number.isFinite(observation?.longitude)) return;
+  map.easeTo({
+    center: [observation.longitude, observation.latitude],
+    zoom: Math.max(map.getZoom(), Math.min(17, map.getMaxZoom())),
+  });
 }
 
 export function showObservationPopup(observation, lngLat, content) {
@@ -307,6 +406,7 @@ export function refreshMapSize() {
 
 export function getMapDebugState() {
   const firstObservationPoint = findClickableObservationPoint();
+  const renderedClusters = renderedClusterDebug();
   return {
     loaded: mapReady,
     tilesLoaded: map ? map.areTilesLoaded() : false,
@@ -315,11 +415,39 @@ export function getMapDebugState() {
       ? { x: firstObservationPoint.x, y: firstObservationPoint.y }
       : null,
     featuresAtFirstObservation: firstObservationPoint && map
-      ? map.queryRenderedFeatures(firstObservationPoint, { layers: [LAYER_OBSERVATIONS] }).length
+      ? map.queryRenderedFeatures(firstObservationPoint, {
+          layers: [LAYER_OBSERVATION_CLUSTERS, LAYER_OBSERVATIONS],
+        }).length
+      : 0,
+    visibleObservations: getVisibleObservations().length,
+    renderedClusters,
+    renderedClusteredObservations: renderedClusters.reduce(
+      (total, cluster) => total + cluster.count,
+      0,
+    ),
+    renderedIndividualPoints: map
+      ? map.queryRenderedFeatures({ layers: [LAYER_OBSERVATIONS] }).length
       : 0,
     center: map ? map.getCenter().toArray() : null,
     zoom: map ? map.getZoom() : null,
   };
+}
+
+function renderedClusterDebug() {
+  if (!mapReady || !map) return [];
+  const clusters = new Map();
+  map.queryRenderedFeatures({ layers: [LAYER_OBSERVATION_CLUSTERS] }).forEach((feature) => {
+    const clusterId = String(feature.properties.cluster_id);
+    if (clusters.has(clusterId)) return;
+    const point = map.project(feature.geometry.coordinates);
+    clusters.set(clusterId, {
+      id: clusterId,
+      count: Number(feature.properties.point_count),
+      x: point.x,
+      y: point.y,
+    });
+  });
+  return [...clusters.values()];
 }
 
 function findClickableObservationPoint() {

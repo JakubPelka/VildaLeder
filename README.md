@@ -87,6 +87,9 @@ Polish; trail-first and species-first search; optional county/municipality
 filters; map selection; interactive Red List classes; and day, 30-day, 90-day,
 365-day, or custom date ranges within the ten-year snapshot. Counts are computed
 from daily aggregates and therefore change with every selected date range.
+Overlapping observation coordinates are clustered with their record count, and
+the paginated table below the map lists every currently visible observation;
+selecting a row zooms to the record and opens its evidence popup.
 
 ### Refresh the public data snapshot
 

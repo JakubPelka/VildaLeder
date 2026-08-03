@@ -22,6 +22,8 @@ The repository now contains a working vertical slice spanning parts of phases
 - Red List category ordering from the SOS observation payload;
 - map-level Red List category counts, zero-category suppression, and per-class
   visibility toggles;
+- numbered map clusters for overlapping coordinates and a viewport-synchronised,
+  paginated observation table with row-to-map navigation;
 - trail-first and species-first (`havsörn` included) journeys;
 - English, Swedish, and Polish interface dictionaries;
 - day, month, quarter, year, and inclusive custom date filters;

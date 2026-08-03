@@ -142,16 +142,44 @@
       </aside>
 
       <section class="map-panel" aria-label="Trail map">
-        <div id="map"></div>
-        <p id="map-observation-summary" class="map-observation-summary" data-count="0" data-i18n="mapSelectTrail">
-          Select a trail to show observations on the map.
-        </p>
-        <div class="map-key">
-          <span><i class="key-line"></i><span data-i18n="trail">Trail</span></span>
-          <span><i class="key-corridor"></i><span data-i18n="corridor">200 m corridor</span></span>
-          <strong data-i18n="redListLegend">Observation points · Red List</strong>
-          <div id="redlist-filters" class="redlist-filters" aria-live="polite"></div>
+        <div class="map-stage">
+          <div id="map"></div>
+          <p id="map-observation-summary" class="map-observation-summary" data-count="0" data-i18n="mapSelectTrail">
+            Select a trail to show observations on the map.
+          </p>
+          <div class="map-key">
+            <span><i class="key-line"></i><span data-i18n="trail">Trail</span></span>
+            <span><i class="key-corridor"></i><span data-i18n="corridor">200 m corridor</span></span>
+            <span><i class="key-cluster">12</i><span data-i18n="clusterLegend">Clustered observations</span></span>
+            <strong data-i18n="redListLegend">Observation points · Red List</strong>
+            <div id="redlist-filters" class="redlist-filters" aria-live="polite"></div>
+          </div>
         </div>
+        <section id="observation-table-panel" class="observation-table-panel" aria-labelledby="observation-table-title" hidden>
+          <div class="observation-table-header">
+            <div>
+              <h2 id="observation-table-title" data-i18n="visibleObservationsTitle">Observations in the current map view</h2>
+              <p id="observation-table-summary" class="help-text" aria-live="polite"></p>
+            </div>
+            <div id="observation-table-pagination" class="table-pagination"></div>
+          </div>
+          <div class="observation-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col" data-i18n="observationSpecies">Species</th>
+                  <th scope="col" data-i18n="observationDate">Date</th>
+                  <th scope="col" data-i18n="redListCategory">Red List</th>
+                  <th scope="col" data-i18n="source">Source</th>
+                </tr>
+              </thead>
+              <tbody id="observation-table-body"></tbody>
+            </table>
+          </div>
+          <p id="observation-table-empty" class="empty-state" data-i18n="noVisibleObservations" hidden>
+            No observations are visible in the current map view.
+          </p>
+        </section>
       </section>
     </main>
 
@@ -165,6 +193,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260803-halmstad-scale-v1"></script>
+    <script type="module" src="src/app.js?v=20260803-observation-clusters-v1"></script>
   </body>
 </html>
