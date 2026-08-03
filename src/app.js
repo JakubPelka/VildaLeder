@@ -11,8 +11,9 @@ import {
   resolveSpecies,
   speciesCatalog,
   speciesLabel,
-} from "./core.js?v=20260803-community-welcome-v11";
-import { translations, translator } from "./i18n.js?v=20260803-community-welcome-v11";
+  weeklySeasonality,
+} from "./core.js?v=20260803-seasonality-destinations-v12";
+import { translations, translator } from "./i18n.js?v=20260803-seasonality-destinations-v12";
 import {
   clearUserLocation,
   fitAllTrails,
@@ -24,7 +25,7 @@ import {
   setUserLocation,
   showFeaturePopup,
   showObservationPopup,
-} from "./map.js?v=20260803-community-welcome-v11";
+} from "./map.js?v=20260803-seasonality-destinations-v12";
 
 const MAX_TAXA_SHOWN = 100;
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
@@ -40,6 +41,14 @@ const CUSTOM_END_PREFERENCE_KEY = "vildaleder-custom-end";
 const PERIOD_VALUES = new Set(["day", "month", "quarter", "year", "custom"]);
 const WELCOME_COOKIE = "vildaleder_welcome_dismissed";
 const WELCOME_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
+const FEATURE_KIND_TRANSLATIONS = Object.freeze({
+  trail: "trail",
+  reserve: "natureReserve",
+  national_park: "nationalPark",
+  observation_tower: "observationTower",
+  bird_hide: "birdHide",
+  observation_site: "observationSite",
+});
 
 const state = {
   catalog: null,
@@ -145,6 +154,28 @@ function formatDate(value) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat(state.language).format(value);
+}
+
+function featureKindLabel(feature) {
+  return t(FEATURE_KIND_TRANSLATIONS[feature.featureKind] || "trail");
+}
+
+function featureDimension(feature) {
+  if (["reserve", "national_park"].includes(feature.featureKind)) {
+    return t("areaHectares", { value: formatNumber(Math.round(feature.areaHa || 0)) });
+  }
+  if (feature.featureKind === "trail") {
+    return t("length", { value: feature.lengthKm });
+  }
+  return t("bufferedDestination");
+}
+
+function featureSourceLabel(feature) {
+  if (feature.source === "nvl") return t("nvlSource");
+  if (["reserve", "national_park"].includes(feature.featureKind)) {
+    return t("protectedAreaSource");
+  }
+  return t("osmRoute");
 }
 
 function currentRange() {
@@ -318,9 +349,7 @@ function renderTrailResults() {
     const title = node("span", "result-title", trail.name);
     title.prepend(featureKindBadge(trail));
     button.append(title);
-    const dimension = trail.featureKind === "reserve"
-      ? t("areaHectares", { value: formatNumber(Math.round(trail.areaHa || 0)) })
-      : t("length", { value: trail.lengthKm });
+    const dimension = featureDimension(trail);
     const evidence = trail.observationCoverage
       ? `${t("observations", { count: formatNumber(stats.observations) })} · ${t("species", {
           count: formatNumber(stats.species),
@@ -363,7 +392,9 @@ function renderSpeciesResults() {
     const button = node("button", "result-card");
     button.type = "button";
     button.classList.toggle("is-selected", ranking.trail.id === state.selectedTrailId);
-    button.append(node("span", "result-title", `${index + 1}. ${ranking.trail.name}`));
+    const title = node("span", "result-title", `${index + 1}. ${ranking.trail.name}`);
+    title.prepend(featureKindBadge(ranking.trail));
+    button.append(title);
     button.append(
       node(
         "span",
@@ -407,7 +438,7 @@ function expandObservation(record) {
     uncertaintyMeters,
     featureIndexes,
   ] = record;
-  const taxon = state.taxonById.get(String(taxonId)) || {};
+  const taxon = localizedSpecies(state.taxonById.get(String(taxonId)) || {});
   const hasArtportalenId = /^\d+$/.test(String(sourceId));
   return {
     id: hasArtportalenId ? `urn:lsid:artportalen.se:sighting:${sourceId}` : String(sourceId),
@@ -533,9 +564,16 @@ async function renderAreaSpeciesObservations(request) {
   const mappedObservationCount = setObservations(visibleObservations) ?? 0;
   setObservationTableRows([]);
   renderMapObservationSummary(null, mappedObservationCount);
+  elements.speciesSummary.append(
+    seasonalityPanel(
+      observations,
+      t("weeklySeasonalityFor", { species: localizedSpeciesLabel(state.selectedSpecies) }),
+    ),
+  );
 }
 
 async function renderTrailDetails() {
+  if (!state.catalog) return;
   const request = ++state.detailsRequest;
   const trail = state.catalog.trails.find((candidate) => candidate.id === state.selectedTrailId);
   elements.trailDetails.replaceChildren();
@@ -608,9 +646,7 @@ function renderResolvedTrailDetails(trail, observations) {
   heading.prepend(featureKindBadge(trail));
   header.append(heading);
   const municipalities = (trail.municipalities || [trail.municipality].filter(Boolean)).join(", ");
-  const dimension = trail.featureKind === "reserve"
-    ? t("areaHectares", { value: formatNumber(Math.round(trail.areaHa || 0)) })
-    : t("length", { value: trail.lengthKm });
+  const dimension = featureDimension(trail);
   header.append(
     node(
       "p",
@@ -623,7 +659,7 @@ function renderResolvedTrailDetails(trail, observations) {
     ),
   );
   const links = node("div", "details-links");
-  const osmLink = node("a", "", t(trail.featureKind === "reserve" ? "reserveSource" : "osmRoute"));
+  const osmLink = node("a", "", featureSourceLabel(trail));
   osmLink.href = trail.sourceUrl || trail.osmUrl;
   osmLink.target = "_blank";
   osmLink.rel = "noreferrer";
@@ -632,6 +668,10 @@ function renderResolvedTrailDetails(trail, observations) {
   clearSelection.addEventListener("click", clearTrailSelection);
   links.append(osmLink, clearSelection);
   header.append(links);
+  if (trail.description) header.append(node("p", "feature-description", trail.description));
+  if (trail.marking) {
+    header.append(node("p", "feature-description", trail.marking));
+  }
   elements.trailDetails.append(header);
 
   if (!trail.observationCoverage) {
@@ -646,7 +686,9 @@ function renderResolvedTrailDetails(trail, observations) {
       elements.trailDetails.append(node("p", "empty-state", t("noObservations")));
     } else {
       const list = node("div", "taxon-list");
-      taxa.slice(0, MAX_TAXA_SHOWN).forEach((taxon) => list.append(taxonRow(taxon)));
+      taxa.slice(0, MAX_TAXA_SHOWN).forEach((taxon) => {
+        list.append(taxonRow(taxon, { expanded: state.mode === "species" }));
+      });
       elements.trailDetails.append(list);
       if (taxa.length > MAX_TAXA_SHOWN) {
         elements.trailDetails.append(
@@ -970,8 +1012,113 @@ function renderRedlistFilters(observations) {
   });
 }
 
-function taxonRow(taxon) {
-  const row = node("div", "taxon-row");
+function svgNode(tag, attributes = {}) {
+  const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+  return element;
+}
+
+function seasonalityPanel(observations, titleText = t("weeklySeasonality")) {
+  const panel = node("section", "seasonality-panel");
+  panel.append(
+    node("h3", "seasonality-title", titleText),
+    node("p", "seasonality-description", t("seasonalityDescription", currentRange())),
+  );
+  const series = weeklySeasonality(observations);
+  const maximum = Math.max(1, ...series.map((item) => item.count));
+  const width = 636;
+  const height = 178;
+  const plotTop = 12;
+  const plotBottom = 142;
+  const barStep = 11.4;
+  const barWidth = 8.2;
+  const chart = svgNode("svg", {
+    class: "seasonality-chart",
+    viewBox: `0 0 ${width} ${height}`,
+    role: "img",
+    "aria-label": `${titleText}. ${t("seasonalityDescription", currentRange())}`,
+  });
+  chart.append(svgNode("line", {
+    x1: 22,
+    y1: plotBottom,
+    x2: width - 7,
+    y2: plotBottom,
+    class: "seasonality-axis",
+  }));
+  const maximumLabel = svgNode("text", {
+    x: 20,
+    y: plotTop + 5,
+    class: "seasonality-label",
+    "text-anchor": "end",
+  });
+  maximumLabel.textContent = formatNumber(maximum);
+  const zeroLabel = svgNode("text", {
+    x: 20,
+    y: plotBottom + 3,
+    class: "seasonality-label",
+    "text-anchor": "end",
+  });
+  zeroLabel.textContent = "0";
+  chart.append(maximumLabel, zeroLabel);
+  series.forEach(({ week, count }, index) => {
+    const barHeight = count ? Math.max(2, (count / maximum) * (plotBottom - plotTop)) : 0;
+    const bar = svgNode("rect", {
+      x: 24 + index * barStep,
+      y: plotBottom - barHeight,
+      width: barWidth,
+      height: barHeight,
+      class: "seasonality-bar",
+      tabindex: count ? 0 : -1,
+    });
+    bar.append(svgNode("title"));
+    bar.firstChild.textContent = t("weekCount", { week, count: formatNumber(count) });
+    chart.append(bar);
+  });
+  [1, 13, 26, 39, 52].forEach((week) => {
+    const label = svgNode("text", {
+      x: 28 + (week - 1) * barStep,
+      y: 163,
+      class: "seasonality-label",
+      "text-anchor": "middle",
+    });
+    label.textContent = t("weekShort", { week });
+    chart.append(label);
+  });
+  panel.append(chart);
+  return panel;
+}
+
+function recentTaxonObservations(taxon) {
+  const wrapper = node("div", "taxon-observation-explorer");
+  wrapper.append(node("h4", "", t("recentTaxonRecords")));
+  [...taxon.observations]
+    .sort((left, right) => (right.date || "").localeCompare(left.date || ""))
+    .slice(0, 20)
+    .forEach((observation) => {
+      const record = node("button", "taxon-observation-record");
+      record.type = "button";
+      record.append(
+        node("span", "", formatDate(observation.date)),
+        node("span", "", observation.dataset || "—"),
+      );
+      record.addEventListener("click", () => {
+        if (!Number.isFinite(observation.latitude) || !Number.isFinite(observation.longitude)) return;
+        focusObservation(observation);
+        showObservationPopup(
+          observation,
+          [observation.longitude, observation.latitude],
+          observationPopup(observation),
+        );
+      });
+      wrapper.append(record);
+    });
+  return wrapper;
+}
+
+function taxonRow(taxon, { expanded = false } = {}) {
+  const row = node("details", "taxon-row");
+  row.open = expanded;
+  const summary = node("summary", "taxon-summary");
   const badge = node("span", "redlist-badge", taxon.redlistCategory || t("unknownCategory"));
   badge.dataset.category = taxon.redlistCategory || "unknown";
   const name = node("div", "taxon-name", taxon.vernacularName || taxon.scientificName || "—");
@@ -981,9 +1128,33 @@ function taxonRow(taxon) {
   const meta = node(
     "div",
     "taxon-count",
-    `${formatNumber(taxon.count)} · ${formatDate(taxon.lastSeen)}`,
+    `${t("observations", { count: formatNumber(taxon.count) })} · ${t("lastSeen", {
+      date: formatDate(taxon.lastSeen),
+    })}`,
   );
-  row.append(badge, name, meta);
+  summary.append(badge, name, meta);
+  const label = taxon.vernacularName || taxon.scientificName || "—";
+  summary.setAttribute("aria-label", t(expanded ? "collapseTaxon" : "expandTaxon", {
+    species: label,
+  }));
+  row.addEventListener("toggle", () => {
+    summary.setAttribute("aria-label", t(row.open ? "collapseTaxon" : "expandTaxon", {
+      species: label,
+    }));
+    if (row.open) renderExpanded();
+  });
+  const content = node("div", "taxon-expanded");
+  let expandedRendered = false;
+  const renderExpanded = () => {
+    if (expandedRendered) return;
+    expandedRendered = true;
+    content.append(
+      seasonalityPanel(taxon.observations, t("weeklySeasonalityFor", { species: label })),
+      recentTaxonObservations(taxon),
+    );
+  };
+  if (expanded) renderExpanded();
+  row.append(summary, content);
   return row;
 }
 
@@ -1024,7 +1195,7 @@ function featureKindBadge(feature) {
   const badge = node(
     "span",
     "feature-kind-badge",
-    t(feature.featureKind === "reserve" ? "natureReserve" : "trail"),
+    featureKindLabel(feature),
   );
   badge.dataset.kind = feature.featureKind || "trail";
   return badge;
@@ -1058,21 +1229,21 @@ function featurePopup(feature) {
   const wrapper = node("div", "feature-popup");
   wrapper.append(node("div", "popup-title", feature.name));
   const municipalities = (feature.municipalities || [feature.municipality].filter(Boolean)).join(", ");
-  const dimension = feature.featureKind === "reserve"
-    ? t("areaHectares", { value: formatNumber(Math.round(feature.areaHa || 0)) })
-    : t("length", { value: feature.lengthKm });
+  const dimension = featureDimension(feature);
   wrapper.append(
     node(
       "div",
       "popup-meta",
-      `${t(feature.featureKind === "reserve" ? "natureReserve" : "trail")} · ${municipalities} · ${dimension}`,
+      [featureKindLabel(feature), municipalities, dimension].filter(Boolean).join(" · "),
     ),
   );
+  if (feature.description) wrapper.append(node("div", "popup-description", feature.description));
+  if (feature.marking) wrapper.append(node("div", "popup-description", feature.marking));
   if (feature.sourceUrl || feature.osmUrl) {
     const link = node(
       "a",
       "",
-      t(feature.featureKind === "reserve" ? "reserveSource" : "osmRoute"),
+      featureSourceLabel(feature),
     );
     link.href = feature.sourceUrl || feature.osmUrl;
     link.target = "_blank";

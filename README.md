@@ -9,9 +9,11 @@ iOS and Android application, accounts, subscriptions, and paid features are
 possible later, after the public web MVP has demonstrated that the underlying
 data and ranking are useful.
 
-> Project status: functional Halland map/filter pilot with complete SOS snapshot
-> coverage for all 388 trails and nature reserves, plus experimental Halland-wide
-> public Skandobs predator evidence.
+> Project status: functional Halland map/filter pilot with a complete SOS snapshot
+> for OSM and Naturvårdsverket walking trails, nature reserves, and buffered
+> birding destinations, plus experimental Halland-wide public Skandobs predator
+> evidence. National-park support is active for the Sweden-wide catalog (Halland
+> itself has no national park).
 > The web MVP runs locally and is
 > prepared for deployment at
 > [jakubpelka.github.io/VildaLeder](https://jakubpelka.github.io/VildaLeder/).
@@ -23,17 +25,19 @@ VildaLeder begins with a walk a person can actually take.
 
 The product has two primary entry points:
 
-### 1. Trail or nature reserve first
+### 1. Nature destination first
 
 “I want to walk this trail. What has been observed nearby recently?”
 
-1. Browse or search marked trails and nature reserves on a map.
+1. Browse or search marked trails, protected areas, and birding destinations on
+   a map.
 2. Filter the map by Swedish county (`län`) and municipality (`kommun`).
 3. Select a trail on the map or from the results list.
 4. Zoom to the complete route.
 5. Query public nature observations inside an approximately 200-metre corridor
-   around the trail, or inside the complete nature-reserve polygon plus a
-   200-metre outward buffer.
+   around the trail; inside a complete reserve/national-park polygon plus a
+   200-metre outward buffer; or within 200 metres of a bird hide, observation
+   tower, or observation platform.
 6. Show recently observed species, prioritised by Swedish Red List category and
    accompanied by observation date, count, source, and data-quality context.
 7. Change the time range: day, month, quarter, year, or custom dates.
@@ -58,7 +62,8 @@ will be present. The interface must make that distinction clear.
 
 - Geography: Sweden.
 - Trails: identifiable walking and hiking route relations from OpenStreetMap,
-  initially `type=route` with `route=hiking` or `route=foot`.
+  plus walking-capable trails from Naturvårdsverket's **Leder och
+  friluftsanordningar** dataset.
 - Observation area: 200 metres on each side of a trail; for a nature reserve,
   the complete official protected-area polygon plus a 200-metre outward buffer.
   The exact spatial method and whether the width becomes configurable will be
@@ -72,15 +77,14 @@ will be present. The interface must make that distinction clear.
 - Delivery: responsive web application on GitHub Pages.
 
 The current map catalog covers all six Halland municipalities: 175 named OSM
-`route=hiking|foot` relations and 213 current Halland nature reserves
-from Naturvårdsregistret (388 selectable places in total). It deduplicates
-cross-municipality routes and retains
-every municipality membership for filtering. The checked-in observation
-snapshot contains all 388 Halland trails/reserves, backed by 1,300,530 canonical
-SOS observations and 1,907,193 observation-to-place matches. The UI still has an
-explicit pending state for future partial refreshes rather than reporting a
-misleading zero. A separate
-ten-year Skandobs snapshot currently adds 74 public wolf/lynx reports matched
+`route=hiking|foot` relations, 136 walking-capable Naturvårdsverket trails, 213
+current Halland nature reserves, and 12 Naturvårdsverket birding destinations
+(6 hides, 4 towers, and 2 platforms). Same-source NVV trail segments are grouped
+by stable `Led_ID`; OSM and NVV records remain separate until cross-source
+geometry/name matching can be calibrated without collapsing distinct routes.
+Every municipality membership is retained for filtering. The UI has an explicit
+pending state for partial refreshes rather than reporting a misleading zero. A
+separate ten-year Skandobs snapshot currently adds 74 public wolf/lynx reports matched
 90 times to 55 Halland trails or reserves; these places are explicitly labelled
 as partial Skandobs-only coverage. Area and place-type
 filters are optional. Sweden-wide species discovery (including sparse species
@@ -97,29 +101,33 @@ python3 -m http.server 8000
 ```
 
 Then open <http://localhost:8000>. The interface supports English, Swedish, and
-Polish; trail/reserve-first and species-first search; optional place-type and
+Polish; place-first and species-first search; optional place-type and
 county/municipality filters; map selection; interactive Red List classes; and day, 30-day, 90-day,
 365-day, or custom date ranges within the ten-year snapshot. Counts are computed
 from daily aggregates and therefore change with every selected date range.
 The custom search range is capped at the most recent ten years. Overlapping
 observation coordinates are clustered with their record count, and
-the paginated table below the map lists observations for the selected trail or
-reserve;
+the paginated table below the map lists observations for the selected place;
 selecting a row zooms to the record and opens its evidence popup. Custom date
 inputs are shown only after selecting the custom-period preset, and editing
 either date always activates that preset. The map's location control displays
 the user's browser-provided position and accuracy, then refreshes the marker
 every two seconds until tracking is stopped.
+Place-first results group repeated observations into one row per taxon, ordered
+by Red List priority. Each row shows its count and most recent date and can be
+expanded into an ISO-week seasonality chart and recent-record explorer. In the
+opposite journey, a species search shows the same weekly chart for all matching
+public observations in the active area and selected time range, then recalculates
+it for a selected place.
 Species-first search loads a bucketed, time-partitioned SOS point index and
 shows every deduplicated observation of the chosen species that intersects at
 least one currently filtered trail/reserve buffer. The same observation is
 drawn once even when several tourist objects overlap; selecting one object then
 narrows the map and table to that object's matches. Scattered observations
-outside all trail and reserve buffers are intentionally not included.
-Hovering a trail or reserve on the map shows its name. Clicking it selects the
-place and opens a compact source card with its municipality and size plus the
-OSM relation link for a trail or the Skyddad natur/Naturvårdsverket link for a
-reserve.
+outside all supported destination buffers are intentionally not included.
+Hovering a destination on the map shows its name. Clicking it selects the
+place and opens a compact source card with its municipality, size or analysis
+buffer, source description, and an OSM, Skyddad natur, or Naturvårdsverket link.
 On desktop, drag the separator between the map and table to choose how much room
 each view receives. Arrow keys resize it for keyboard users, double-click resets
 the default 75/25 split, and the preference is retained in the browser.
@@ -144,7 +152,8 @@ SOS_SUBSCRIPTION_KEY_FILE=/absolute/path/to/specieskey.txt \
 
 `SOS_SUBSCRIPTION_KEY` can be used instead of a file. Neither form is written to
 `data/catalog.json`; `.env*`, `secrets/`, and raw responses are ignored by Git.
-The job refreshes Halland trails and reserves, invalidates observation coverage
+The job refreshes Halland trails, protected areas, and birding destinations,
+invalidates observation coverage
 when geometry changes, completes ten-year coverage for new places, reconciles a
 rolling 90-day correction window, refreshes Skandobs on a best-effort basis,
 verifies PostGIS, and atomically exports the full public snapshot. Date windows
@@ -194,9 +203,10 @@ Refresh the Halland spatial catalog independently (no SOS credential required):
 .venv/bin/python scripts/sync_features.py
 ```
 
-This queries OSM per municipality and the authoritative Naturvårdsregistret,
+This queries OSM per municipality, Naturvårdsregistret, and Naturvårdsverket's
+official outdoor-recreation WFS,
 then writes `data/features.json`. Set `DATABASE_URL` or pass `--database-url` to
-upsert the same trail and reserve geometries into PostGIS. On the always-on
+upsert the same destination geometries into PostGIS. On the always-on
 server, reuse the checked catalog without making upstream requests:
 
 ```bash
@@ -305,9 +315,10 @@ scripts/run_sweden_backfill.sh
 ```
 
 The job obtains the current municipality list from SCB, discovers named OSM
-hiking/foot routes municipality by municipality, downloads current nature
-reserve boundaries from Naturvårdsregistret, and requests SOS observations in
-bounded feature/year windows. County catalogs and `progress.json` stay under
+hiking/foot routes municipality by municipality, downloads walking trails and
+birding facilities from Naturvårdsverket, loads current reserve and national-park
+boundaries from Naturvårdsregistret, and requests SOS observations in bounded
+feature/year windows. County catalogs and `progress.json` stay under
 `~/.local/state/vildaleder-sweden`; the job does not call the static exporter,
 Git, or GitHub Pages. The Halland daily timer continues to use the original
 `vildaleder` database. Later deployment can switch the API database DSN only
@@ -357,6 +368,7 @@ avoid importing the same feed twice.
 ```mermaid
 flowchart LR
     OSM[OpenStreetMap routes] --> DB[(PostgreSQL / PostGIS)]
+    NVL[Naturvårdsverket trails and destinations] --> DB
     Admin[Counties and municipalities] --> DB
     Reserves[Nature reserves] --> DB
     Skandobs[Skandobs public web API] --> DB
@@ -399,8 +411,10 @@ hosting platform for a future commercial SaaS or subscription backend.
 - Localisation: checked-in UI dictionaries for `en`, `sv`, and `pl`.
 - Spatial processing: Python, Shapely, and pyproj; corridors are calculated in
   SWEREF 99 TM (`EPSG:3006`) and exported as WGS84 GeoJSON.
-- Data: route relations from OSM/Overpass, public Artportalen observations from
-  SLU SOS, and an experimental whitelisted public Skandobs predator snapshot,
+- Data: route relations from OSM/Overpass, trails and visitor destinations from
+  Naturvårdsverket, protected areas from Naturvårdsregistret, public Artportalen
+  observations from SLU SOS, and an experimental whitelisted public Skandobs
+  predator snapshot,
   stored as compact geometry/source artifacts and daily aggregate indexes.
 - Scale target: PostgreSQL 18/PostGIS 3.6 with canonical observations,
   source-record provenance, native spatial matching, multilingual taxon names,
@@ -501,8 +515,8 @@ The canonical identity is a source taxon identifier, never the displayed name.
   absence from VildaLeder is therefore not evidence of ecological absence.
 - Observation locations must not be interpreted as trail safety guidance or
   permission to enter private/restricted land.
-- Trail presence in OSM does not guarantee that it is open, maintained, safe, or
-  legally accessible at the selected time.
+- Trail presence in OSM or Naturvårdsverket data does not guarantee that it is
+  open, maintained, safe, or legally accessible at the selected time.
 - Seasonal closures, fire restrictions, hunting, weather, accessibility, and
   transport are valuable future layers but are outside the first MVP.
 - All source attribution and downstream licence obligations must be visible and
@@ -511,9 +525,9 @@ The canonical identity is a source taxon identifier, never the displayed name.
   a promise that a species will be present.
 - The standard OpenStreetMap tile service is used only at pilot scale; it is not
   the selected production or offline basemap.
-- Pilot common-name autocomplete is Swedish plus scientific names. English and
-  Polish taxon-name sources are not yet integrated, although the complete UI is
-  translated.
+- Common-name autocomplete uses the available Swedish, English, and Polish GBIF
+  enrichment plus scientific names; missing vernacular names fall back to the
+  scientific name.
 
 ## Roadmap
 
@@ -529,6 +543,7 @@ path from data discovery to web MVP and native mobile applications.
 - [SLU overview of open data and APIs](https://www.slu.se/artdatabanken/rapportering-och-fynd/oppna-data-och-apier/om-slu-artdatabankens-apier)
 - [SLU Species Observation System API capabilities](https://www.slu.se/artdatabanken/rapportering-och-fynd/oppna-data-och-apier/om-slu-artdatabankens-apier/api-for-artobservationer-fran-flera-dataset/)
 - [Naturvårdsregistret REST API](https://geodata.naturvardsverket.se/naturvardsregistret/rest/v3/)
+- [Naturvårdsverket Leder och friluftsanordningar downloads and WFS](https://geodata.naturvardsverket.se/nedladdning/friluftsliv/)
 - [Skandobs](https://www.skandobs.se/) — experimental source for public
   large-predator reports through the web client's anonymous API. The adapter is
   deliberately best-effort because no stability or redistribution contract has

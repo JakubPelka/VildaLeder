@@ -389,6 +389,18 @@ label > span,
   color: #244f6b;
 }
 
+.feature-kind-badge[data-kind="national_park"] {
+  background: #d7eee1;
+  color: #18583c;
+}
+
+.feature-kind-badge[data-kind="bird_hide"],
+.feature-kind-badge[data-kind="observation_tower"],
+.feature-kind-badge[data-kind="observation_site"] {
+  background: #ece4f5;
+  color: #59407b;
+}
+
 .result-meta {
   color: var(--muted);
   font-size: 0.78rem;
@@ -434,6 +446,17 @@ label > span,
   font-size: 0.78rem;
 }
 
+.feature-description,
+.popup-description {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.feature-description {
+  margin: 0.55rem 0 0;
+}
+
 .clear-place-selection {
   padding: 0;
   border: 0;
@@ -456,12 +479,118 @@ label > span,
 }
 
 .taxon-row {
+  padding: 0;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.taxon-summary {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: start;
   gap: 0.55rem;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid #edf0ed;
+  padding: 0.65rem 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.taxon-summary::-webkit-details-marker {
+  display: none;
+}
+
+.taxon-summary::after {
+  grid-column: 2 / -1;
+  color: var(--brand);
+  content: "+";
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 0.7;
+}
+
+.taxon-row[open] > .taxon-summary::after {
+  content: "−";
+}
+
+.taxon-expanded {
+  padding: 0 0 0.9rem 2.75rem;
+}
+
+.seasonality-panel {
+  margin-top: 0.65rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: #fbfcfa;
+}
+
+.selection-summary .seasonality-panel {
+  margin-top: 0.8rem;
+}
+
+.seasonality-title,
+.taxon-observation-explorer h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.seasonality-description {
+  margin: 0.18rem 0 0.35rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.seasonality-chart {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.seasonality-axis {
+  stroke: #aeb9b1;
+  stroke-width: 1;
+}
+
+.seasonality-bar {
+  fill: var(--brand);
+  opacity: 0.83;
+}
+
+.seasonality-bar:hover,
+.seasonality-bar:focus {
+  fill: var(--accent);
+  opacity: 1;
+  outline: none;
+}
+
+.seasonality-label {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.taxon-observation-explorer {
+  display: grid;
+  gap: 0.28rem;
+  margin-top: 0.7rem;
+}
+
+.taxon-observation-record {
+  display: flex;
+  min-height: auto;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.45rem;
+  border-color: var(--line);
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
+.taxon-observation-record:hover {
+  border-color: var(--brand);
+  color: var(--ink);
 }
 
 .taxon-name {
@@ -660,6 +789,16 @@ label > span,
   height: 0.7rem;
   border: 2px solid #2f855a;
   background: rgb(47 133 90 / 24%);
+}
+
+.key-destination {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin: 0 0.3rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #65558f;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 30%);
 }
 
 .key-corridor {

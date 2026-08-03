@@ -119,6 +119,30 @@ export function groupTaxa(observations) {
   });
 }
 
+export function isoWeek(value) {
+  const day = dateOnly(value);
+  if (!day) return null;
+  const date = new Date(`${day}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  const target = new Date(date);
+  const weekday = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - weekday);
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1, 12));
+  return Math.ceil(((target - yearStart) / 86_400_000 + 1) / 7);
+}
+
+export function weeklySeasonality(observations) {
+  const counts = Array.from({ length: 53 }, (_, index) => ({
+    week: index + 1,
+    count: 0,
+  }));
+  for (const observation of observations || []) {
+    const week = isoWeek(observation.date);
+    if (week) counts[week - 1].count += 1;
+  }
+  return counts;
+}
+
 export function speciesCatalog(source) {
   if (source?.taxa) {
     return [...source.taxa].sort((left, right) =>

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Synchronise trails and nature reserves into GeoJSON and PostGIS.
+"""Synchronise trails and nature destinations into GeoJSON and PostGIS.
 
 Trails come from named OSM hiking/foot route relations, queried municipality by
-municipality to keep Overpass requests bounded. Nature reserves come from the
-authoritative Naturvårdsregistret REST API. Every feature receives an analysis
-geometry consisting of the route corridor or reserve polygon plus 200 metres.
+municipality to keep Overpass requests bounded, and from Naturvårdsverket's
+national outdoor-recreation dataset. Protected areas come from the authoritative
+Naturvårdsregistret REST API. Bird hides, observation towers and observation
+platforms come from Naturvårdsverket. Every feature receives an analysis geometry
+consisting of the route corridor, protected area, or destination plus 200 metres.
 """
 
 from __future__ import annotations
@@ -27,8 +29,17 @@ import psycopg
 import requests
 from pyproj import Transformer
 from shapely import wkt
-from shapely.geometry import MultiPolygon, Polygon, mapping
-from shapely.ops import transform
+from shapely.geometry import (
+    LineString,
+    MultiLineString,
+    MultiPoint,
+    MultiPolygon,
+    Point,
+    Polygon,
+    mapping,
+    shape,
+)
+from shapely.ops import transform, unary_union
 
 try:
     from scripts.refresh_data import (
@@ -58,6 +69,12 @@ except ModuleNotFoundError:  # Direct execution adds scripts/ rather than the re
 
 ROOT = Path(__file__).resolve().parents[1]
 NVR_BASE_URL = "https://geodata.naturvardsverket.se/naturvardsregistret/rest/v3"
+NVL_TRAILS_WFS_URL = "https://geodata.naturvardsverket.se/leder_friluftsliv/wfs"
+NVL_DESTINATIONS_WFS_URL = (
+    "https://geodata.naturvardsverket.se/anordningar_friluftsliv/wfs"
+)
+NVL_TRAILS_TYPENAME = "Leder_friluftsliv_WFS:LED"
+NVL_DESTINATIONS_TYPENAME = "Anordningar_friluftsliv_WFS:ANORDNINGAR"
 COUNTY = "Halland"
 MUNICIPALITIES = {
     "1315": "Hylte",
@@ -68,6 +85,12 @@ MUNICIPALITIES = {
     "1384": "Kungsbacka",
 }
 NVR_WORKERS = 6
+NVL_WALKING_TYPES = ("Vandringsled", "Naturstig", "Omarkerad stig", "Elljusspår")
+NVL_DESTINATION_TYPES = {
+    "Fågeltorn": "observation_tower",
+    "Gömsle": "bird_hide",
+    "Observationsplattform": "observation_site",
+}
 OVERPASS_URLS = tuple(
     dict.fromkeys(
         filter(
@@ -113,6 +136,11 @@ def normalized_name(value: str) -> str:
         for character in unicodedata.normalize("NFKD", value)
         if not unicodedata.combining(character)
     ).casefold().strip()
+
+
+def clean_nvl_name(value: Any, fallback: str) -> str:
+    text = str(value or "").replace('\\"', '"').strip().strip('"').strip()
+    return text or fallback
 
 
 def overpass_query(municipality_code: str) -> str:
@@ -200,6 +228,174 @@ def fetch_halland_routes() -> list[dict[str, Any]]:
     return fetch_routes(COUNTY, MUNICIPALITIES)
 
 
+def nvl_county_label(county: str) -> str:
+    special = {
+        "Halland": "Hallands Län",
+        "Kronoberg": "Kronobergs Län",
+        "Jönköping": "Jönköpings Län",
+        "Västra Götaland": "Västra Götalands Län",
+        "Östergötland": "Östergötlands Län",
+        "Gotland": "Gotlands Län",
+        "Södermanland": "Södermanlands Län",
+        "Värmland": "Värmlands Län",
+        "Västmanland": "Västmanlands Län",
+        "Stockholm": "Stockholms Län",
+        "Dalarna": "Dalarnas Län",
+        "Gävleborg": "Gävleborgs Län",
+        "Västernorrland": "Västernorrlands Län",
+        "Jämtland": "Jämtlands Län",
+        "Västerbotten": "Västerbottens Län",
+        "Norrbotten": "Norrbottens Län",
+    }
+    return special.get(county, f"{county} Län")
+
+
+def nvl_filter(county: str) -> str:
+    return (
+        '<fes:Filter xmlns:fes="http://www.opengis.net/fes/2.0">'
+        "<fes:PropertyIsEqualTo>"
+        "<fes:ValueReference>Län</fes:ValueReference>"
+        f"<fes:Literal>{nvl_county_label(county)}</fes:Literal>"
+        "</fes:PropertyIsEqualTo>"
+        "</fes:Filter>"
+    )
+
+
+def fetch_nvl_rows(url: str, typename: str, county: str) -> list[dict[str, Any]]:
+    payload = request_json(
+        new_session(),
+        "GET",
+        url,
+        params={
+            "service": "WFS",
+            "version": "2.0.0",
+            "request": "GetFeature",
+            "typeNames": typename,
+            "outputFormat": "GEOJSON",
+            "filter": nvl_filter(county),
+        },
+        timeout=180,
+    )
+    rows = payload.get("features", []) if isinstance(payload, dict) else []
+    if not isinstance(rows, list):
+        raise RefreshError("Naturvårdsverket returned an unexpected WFS response")
+    return rows
+
+
+def multilineal(geometry: Any) -> MultiLineString:
+    if isinstance(geometry, LineString):
+        return MultiLineString([geometry])
+    if isinstance(geometry, MultiLineString):
+        return geometry
+    lines = [part for part in getattr(geometry, "geoms", []) if isinstance(part, LineString)]
+    if not lines:
+        raise RefreshError(f"NVV trail geometry is not linear: {geometry.geom_type}")
+    return MultiLineString(lines)
+
+
+def fetch_nvl_trails(county: str) -> list[dict[str, Any]]:
+    rows = fetch_nvl_rows(NVL_TRAILS_WFS_URL, NVL_TRAILS_TYPENAME, county)
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        properties = row.get("properties") or {}
+        trail_type = str(properties.get("Typ_av_led") or "")
+        if not any(kind in trail_type for kind in NVL_WALKING_TYPES):
+            continue
+        trail_id = str(properties.get("Led_ID") or "").strip()
+        if trail_id and row.get("geometry"):
+            grouped[trail_id].append(row)
+
+    features = []
+    for trail_id, segments in grouped.items():
+        properties = segments[0].get("properties") or {}
+        combined = multilineal(unary_union([shape(segment["geometry"]) for segment in segments]))
+        geometry, analysis_geometry, length_km = trail_geometry(combined)
+        municipalities = sorted(
+            {
+                str(segment.get("properties", {}).get("Kommun") or "").strip()
+                for segment in segments
+                if str(segment.get("properties", {}).get("Kommun") or "").strip()
+            }
+        )
+        features.append(
+            {
+                "id": f"nvl-led-{trail_id}",
+                "featureKind": "trail",
+                "source": "nvl",
+                "sourceFeatureId": f"led-{trail_id}",
+                "name": clean_nvl_name(
+                    properties.get("Lednamn"), f"Vandringsled {trail_id}"
+                ),
+                "county": county,
+                "municipalities": municipalities,
+                "municipality": municipalities[0] if municipalities else None,
+                "lengthKm": round(length_km, 1),
+                "trailType": properties.get("Typ_av_led"),
+                "trailCategory": properties.get("Ledkategori"),
+                "description": properties.get("Beskrivning"),
+                "marking": properties.get("Ledmarkering"),
+                "protectedArea": properties.get("Skyddat_område"),
+                "protectedAreaId": properties.get("Skyddat_område_ID"),
+                "sourceUrl": "https://www.naturvardsverket.se/amnesomraden/friluftsliv/",
+                "geometry": geometry,
+                "analysisGeometry": analysis_geometry,
+            }
+        )
+    return sorted(features, key=lambda item: (item["name"].casefold(), item["id"]))
+
+
+def destination_point(geometry: Any) -> Point:
+    if isinstance(geometry, Point):
+        return geometry
+    if isinstance(geometry, MultiPoint):
+        if not geometry.geoms:
+            raise RefreshError("NVV destination has an empty point geometry")
+        return geometry.centroid
+    raise RefreshError(f"NVV destination geometry is not a point: {geometry.geom_type}")
+
+
+def nvl_destination_feature(row: dict[str, Any], county: str) -> dict[str, Any]:
+    properties = row.get("properties") or {}
+    destination_id = str(properties["Anordning_ID"])
+    feature_kind = NVL_DESTINATION_TYPES[str(properties["Typ"])]
+    point = destination_point(shape(row["geometry"]))
+    to_sweref = Transformer.from_crs("EPSG:4326", "EPSG:3006", always_xy=True).transform
+    to_wgs84 = Transformer.from_crs("EPSG:3006", "EPSG:4326", always_xy=True).transform
+    analysis = transform(to_wgs84, transform(to_sweref, point).buffer(BUFFER_METERS))
+    municipality = str(properties.get("Kommun") or "").strip()
+    return {
+        "id": f"nvl-site-{destination_id}",
+        "featureKind": feature_kind,
+        "source": "nvl",
+        "sourceFeatureId": f"site-{destination_id}",
+        "name": clean_nvl_name(
+            properties.get("Anordningsnamn"), f"{properties['Typ']} {destination_id}"
+        ),
+        "county": county,
+        "municipalities": [municipality] if municipality else [],
+        "municipality": municipality or None,
+        "destinationType": properties.get("Typ"),
+        "destinationSubtype": properties.get("Undertyp"),
+        "description": properties.get("Beskrivning"),
+        "protectedArea": properties.get("Skyddat_område"),
+        "protectedAreaId": properties.get("Skyddat_område_ID"),
+        "sourceUrl": "https://www.naturvardsverket.se/amnesomraden/friluftsliv/",
+        "geometry": mapping(point),
+        "analysisGeometry": mapping(analysis),
+    }
+
+
+def fetch_nvl_destinations(county: str) -> list[dict[str, Any]]:
+    rows = fetch_nvl_rows(NVL_DESTINATIONS_WFS_URL, NVL_DESTINATIONS_TYPENAME, county)
+    features = [
+        nvl_destination_feature(row, county)
+        for row in rows
+        if str((row.get("properties") or {}).get("Typ")) in NVL_DESTINATION_TYPES
+        and row.get("geometry")
+    ]
+    return sorted(features, key=lambda item: (item["name"].casefold(), item["id"]))
+
+
 def request_text(session: requests.Session, url: str, attempts: int = 6) -> str:
     last_message = ""
     for attempt in range(attempts):
@@ -240,7 +436,11 @@ def polygonal(geometry: Any) -> Polygon | MultiPolygon:
     return MultiPolygon(polygons)
 
 
-def reserve_feature(item: dict[str, Any], county: str = COUNTY) -> dict[str, Any]:
+def reserve_feature(
+    item: dict[str, Any],
+    county: str = COUNTY,
+    feature_kind: str = "reserve",
+) -> dict[str, Any]:
     reserve_id = str(item["id"])
     status = str(item.get("beslutsstatus") or "Gällande")
     geometry_url = f"{NVR_BASE_URL}/omrade/{quote(reserve_id)}/{quote(status)}/wkt"
@@ -255,10 +455,13 @@ def reserve_feature(item: dict[str, Any], county: str = COUNTY) -> dict[str, Any
     municipalities = reserve_municipalities(item.get("kommunerAsText"))
     return {
         "id": f"nvr-{reserve_id}",
-        "featureKind": "reserve",
+        "featureKind": feature_kind,
         "source": "nvr",
         "sourceFeatureId": reserve_id,
-        "name": item.get("namn") or f"Naturreservat {reserve_id}",
+        "name": item.get("namn") or (
+            f"Nationalpark {reserve_id}" if feature_kind == "national_park"
+            else f"Naturreservat {reserve_id}"
+        ),
         "county": county,
         "municipalities": municipalities,
         "municipality": municipalities[0] if municipalities else None,
@@ -274,9 +477,11 @@ def reserve_feature(item: dict[str, Any], county: str = COUNTY) -> dict[str, Any
     }
 
 
-def fetch_reserves(
+def fetch_protected_areas(
     county: str,
     nvr_county_code: str,
+    protection_code: str,
+    feature_kind: str,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     rows = request_json(
@@ -285,19 +490,21 @@ def fetch_reserves(
         f"{NVR_BASE_URL}/omrade",
         params={
             "lan": nvr_county_code,
-            "skyddstypkod": "NR",
+            "skyddstypkod": protection_code,
             "beslutsstatus": "Gällande",
             "limit": 1_000,
         },
         timeout=120,
     )
     if not isinstance(rows, list):
-        raise RefreshError("Naturvårdsregistret returned an unexpected reserve list")
+        raise RefreshError("Naturvårdsregistret returned an unexpected protected-area list")
     if limit:
         rows = rows[:limit]
     features = []
     with ThreadPoolExecutor(max_workers=NVR_WORKERS) as executor:
-        futures = {executor.submit(reserve_feature, item, county): item for item in rows}
+        futures = {
+            executor.submit(reserve_feature, item, county, feature_kind): item for item in rows
+        }
         completed = 0
         for future in as_completed(futures):
             item = futures[future]
@@ -305,12 +512,30 @@ def fetch_reserves(
                 features.append(future.result())
             except Exception as exc:
                 raise RefreshError(
-                    f"Failed to fetch reserve {item.get('namn') or item.get('id')}: {exc}"
+                    f"Failed to fetch protected area {item.get('namn') or item.get('id')}: {exc}"
                 ) from exc
             completed += 1
             if completed % 25 == 0 or completed == len(rows):
-                print(f"Reserve geometries: {completed}/{len(rows)}", file=sys.stderr)
+                print(f"{feature_kind} geometries: {completed}/{len(rows)}", file=sys.stderr)
     return sorted(features, key=lambda item: (item["name"].casefold(), item["id"]))
+
+
+def fetch_reserves(
+    county: str,
+    nvr_county_code: str,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    return fetch_protected_areas(county, nvr_county_code, "NR", "reserve", limit)
+
+
+def fetch_national_parks(
+    county: str,
+    nvr_county_code: str,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    return fetch_protected_areas(
+        county, nvr_county_code, "NP", "national_park", limit
+    )
 
 
 def fetch_halland_reserves(limit: int | None = None) -> list[dict[str, Any]]:
@@ -333,6 +558,12 @@ def ensure_sources(connection: psycopg.Connection[Any]) -> dict[str, int]:
             "https://geodata.naturvardsverket.se/naturvardsregistret/",
             "Naturvårdsverket, Naturvårdsregistret",
         ),
+        (
+            "nvl",
+            "Leder och friluftsanordningar / Naturvårdsverket",
+            "https://geodata.naturvardsverket.se/nedladdning/friluftsliv/",
+            "Naturvårdsverket, Leder och friluftsanordningar",
+        ),
     )
     with connection.cursor() as cursor:
         cursor.executemany(
@@ -347,7 +578,8 @@ def ensure_sources(connection: psycopg.Connection[Any]) -> dict[str, int]:
         )
     return dict(
         connection.execute(
-            "SELECT source_key, source_id FROM vildaleder.data_source WHERE source_key IN ('osm', 'nvr')"
+            "SELECT source_key, source_id FROM vildaleder.data_source "
+            "WHERE source_key IN ('osm', 'nvr', 'nvl')"
         ).fetchall()
     )
 
@@ -368,7 +600,7 @@ def upsert_postgis(
                           feature.geometry_version, feature.properties
                    FROM vildaleder.spatial_feature feature
                    JOIN vildaleder.data_source source USING (source_id)
-                   WHERE source.source_key IN ('osm', 'nvr')"""
+                   WHERE source.source_key IN ('osm', 'nvr', 'nvl')"""
             ).fetchall()
         }
         feature_ids = []
@@ -396,6 +628,14 @@ def upsert_postgis(
                     "iucnCategory",
                     "manager",
                     "decisionStatus",
+                    "trailType",
+                    "trailCategory",
+                    "description",
+                    "marking",
+                    "destinationType",
+                    "destinationSubtype",
+                    "protectedArea",
+                    "protectedAreaId",
                 )
                 if feature.get(key) is not None
             }
@@ -484,6 +724,10 @@ def upsert_postgis(
     return {
         "trails": counts.get("trail", 0),
         "reserves": counts.get("reserve", 0),
+        "nationalParks": counts.get("national_park", 0),
+        "birdHides": counts.get("bird_hide", 0),
+        "observationTowers": counts.get("observation_tower", 0),
+        "observationSites": counts.get("observation_site", 0),
         "invalidated": len(invalidated_features),
     }
 
@@ -502,8 +746,13 @@ def build_catalog(
             "municipalities": sorted(municipalities.values()),
             "maximumObservationYears": 10,
             "sources": {
-                "trails": "OpenStreetMap contributors",
+                "trails": (
+                    "OpenStreetMap contributors; Naturvårdsverket, "
+                    "Leder och friluftsanordningar"
+                ),
                 "reserves": "Naturvårdsverket, Naturvårdsregistret",
+                "nationalParks": "Naturvårdsverket, Naturvårdsregistret",
+                "destinations": "Naturvårdsverket, Leder och friluftsanordningar",
             },
         },
         "features": features,
@@ -519,16 +768,32 @@ def main() -> int:
             trails = [feature for feature in features if feature["featureKind"] == "trail"]
             reserves = [feature for feature in features if feature["featureKind"] == "reserve"]
         else:
-            trails = fetch_halland_routes()
+            trails = [*fetch_halland_routes(), *fetch_nvl_trails(COUNTY)]
             if args.trail_limit:
                 trails = trails[: args.trail_limit]
             reserves = fetch_halland_reserves(args.reserve_limit)
+            national_parks = fetch_national_parks(COUNTY, "N")
+            destinations = fetch_nvl_destinations(COUNTY)
             features = sorted(
-                [*trails, *reserves],
+                [*trails, *reserves, *national_parks, *destinations],
                 key=lambda item: (item["featureKind"], item["name"].casefold(), item["id"]),
             )
             write_json(args.output, build_catalog(features))
-        stats = {"trails": len(trails), "reserves": len(reserves)}
+        if args.from_file:
+            national_parks = [
+                feature for feature in features if feature["featureKind"] == "national_park"
+            ]
+            destinations = [
+                feature
+                for feature in features
+                if feature["featureKind"] in NVL_DESTINATION_TYPES.values()
+            ]
+        stats = {
+            "trails": len(trails),
+            "reserves": len(reserves),
+            "nationalParks": len(national_parks),
+            "destinations": len(destinations),
+        }
         if args.database_url:
             stats["postgis"] = upsert_postgis(args.database_url, features)
     except (KeyError, OSError, ValueError, RefreshError, requests.RequestException, psycopg.Error) as exc:

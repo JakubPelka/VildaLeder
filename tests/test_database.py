@@ -47,18 +47,33 @@ class PostgisContractTests(unittest.TestCase):
         self.assertIn("ST_Intersects(feature.analysis_geom, observed.geom)", self.schema)
         self.assertIn("refresh_observation_feature_matches", self.schema)
         self.assertIn("refresh_daily_feature_taxon", self.schema)
-        self.assertIn("'trail', 'reserve'", self.schema)
+        destination_migration = (
+            ROOT / "db" / "migrations" / "002_destination_types.sql"
+        ).read_text(encoding="utf-8")
+        for feature_kind in (
+            "trail",
+            "reserve",
+            "national_park",
+            "bird_hide",
+            "observation_tower",
+            "observation_site",
+        ):
+            self.assertIn(f"'{feature_kind}'", destination_migration)
 
     def test_names_are_accent_insensitive_without_losing_stored_spelling(self):
         self.assertEqual(normalized_name("Havsörn"), "havsorn")
         self.assertEqual(normalized_name("Żubr europejski"), "zubr europejski")
         self.assertEqual(normalized_name("Järv"), "jarv")
 
-    def test_snapshot_feature_identity_supports_trails_and_reserves(self):
+    def test_snapshot_feature_identity_supports_spatial_sources(self):
         self.assertEqual(feature_identity({"osmRelationId": 8_394_095}), ("osm", "8394095"))
         self.assertEqual(
             feature_identity({"source": "nvr", "sourceFeatureId": "2001961"}),
             ("nvr", "2001961"),
+        )
+        self.assertEqual(
+            feature_identity({"source": "nvl", "sourceFeatureId": "site-30500401"}),
+            ("nvl", "site-30500401"),
         )
 
     def test_snapshot_feature_identity_rejects_missing_source_id(self):
@@ -68,7 +83,7 @@ class PostgisContractTests(unittest.TestCase):
     def test_numbered_migration_is_discoverable(self):
         self.assertEqual(
             [(version, path.name) for version, path in migration_files()],
-            [(1, "001_initial.sql")],
+            [(1, "001_initial.sql"), (2, "002_destination_types.sql")],
         )
 
     def test_refresh_windows_do_not_prune_canonical_observations_by_age(self):

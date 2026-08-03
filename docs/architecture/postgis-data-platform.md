@@ -5,7 +5,7 @@ Status: target architecture accepted for the Sweden-wide VildaLeder service.
 ## Decision
 
 PostgreSQL with PostGIS is the system of record for observations, taxonomy,
-trails, nature reserves, administrative areas, spatial matches, and daily
+trails, protected areas, birding destinations, administrative areas, spatial matches, and daily
 aggregates. The repository uses PostgreSQL 18 with PostGIS 3.6 for local
 development. Static JSON remains an export format for the GitHub Pages pilot,
 not the canonical national datastore.
@@ -22,7 +22,8 @@ flowchart LR
     GBIF[GBIF / Darwin Core] --> Sync
     Taxonomy[Dyntaxa and taxon sources] --> Sync
     OSM[OSM trails] --> Spatial[PostGIS features]
-    Reserves[Nature reserves] --> Spatial
+    NVL[Naturvårdsverket trails and destinations] --> Spatial
+    Reserves[Protected areas] --> Spatial
     Sync --> Obs[Canonical observations]
     Obs --> Match[Spatial observation-feature matches]
     Spatial --> Match
@@ -45,11 +46,12 @@ flowchart LR
   `observation_source_record` retains provider IDs, URLs, update state, and
   provenance. A later matcher may attach a GBIF record and an Artportalen record
   to the same canonical observation.
-- `spatial_feature` represents either a trail or nature reserve. `geom` is the
-  display/source geometry; `analysis_geom` is the 200 m trail corridor or reserve
-  polygon used for matching.
+- `spatial_feature` represents a trail, nature reserve, national park, bird hide,
+  observation tower, or observation site. `geom` is the display/source geometry;
+  `analysis_geom` is the polygon used for matching: a 200 m trail corridor, a
+  protected-area polygon plus 200 m, or a 200 m point buffer.
 - `observation_feature` is the versioned many-to-many spatial match. The same
-  observation can support several overlapping trails and reserves without
+  observation can support several overlapping destinations without
   duplicating the observation.
 - `daily_feature_taxon` is the serving aggregate behind date-sensitive counts
   and species rankings. A rolling date window can be rebuilt transactionally
