@@ -13,8 +13,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260803-issues-13-22-v13";
-import { translations, translator } from "./i18n.js?v=20260803-issues-13-22-v13";
+} from "./core.js?v=20260803-map-state-v14";
+import { translations, translator } from "./i18n.js?v=20260803-map-state-v14";
 import {
   clearUserLocation,
   fitAllTrails,
@@ -26,7 +26,7 @@ import {
   setUserLocation,
   showFeaturePopup,
   showObservationPopup,
-} from "./map.js?v=20260803-issues-13-22-v13";
+} from "./map.js?v=20260803-map-state-v14";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -38,7 +38,16 @@ const MIN_TABLE_HEIGHT = 160;
 const PERIOD_PREFERENCE_KEY = "vildaleder-period";
 const CUSTOM_START_PREFERENCE_KEY = "vildaleder-custom-start";
 const CUSTOM_END_PREFERENCE_KEY = "vildaleder-custom-end";
+const FEATURE_KIND_PREFERENCE_KEY = "vildaleder-feature-kind";
 const PERIOD_VALUES = new Set(["day", "month", "quarter", "year", "custom"]);
+const FEATURE_KIND_VALUES = new Set([
+  "",
+  "trail",
+  "reserve",
+  "national_park",
+  "observation_infrastructure",
+  "all",
+]);
 const WELCOME_COOKIE = "vildaleder_welcome_dismissed";
 const WELCOME_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 const FEATURE_KIND_TRANSLATIONS = Object.freeze({
@@ -1455,10 +1464,22 @@ function updateMapStyles() {
   );
 }
 
+function currentMapExtentPlaces() {
+  const visiblePlaces = areaTrails();
+  if (visiblePlaces.length) return visiblePlaces;
+  const areaContext = filteredTrails(state.catalog.trails, {
+    featureKind: "all",
+    county: state.county,
+    municipality: state.municipality,
+  });
+  if (areaContext.length) return areaContext;
+  return filteredTrails(state.catalog.trails, { featureKind: "all" });
+}
+
 function fitCurrentAreaAfterRender() {
   window.requestAnimationFrame(() => {
-    const visiblePlaces = areaTrails();
-    if (visiblePlaces.length) fitAllTrails(visiblePlaces);
+    const extentPlaces = currentMapExtentPlaces();
+    if (extentPlaces.length) fitAllTrails(extentPlaces);
   });
 }
 
@@ -1503,6 +1524,7 @@ function resetFilters() {
   state.loadedSelection = null;
   state.disabledRedlistCategories.clear();
   elements.featureKind.value = "";
+  localStorage.removeItem(FEATURE_KIND_PREFERENCE_KEY);
   elements.period.value = "year";
   elements.customDates.hidden = true;
   elements.dateFrom.value = state.customStart;
@@ -1513,6 +1535,12 @@ function resetFilters() {
   setMode("trail");
   renderAll();
   fitAllTrails(areaTrails());
+}
+
+function initialiseFeatureKindControl() {
+  const savedFeatureKind = localStorage.getItem(FEATURE_KIND_PREFERENCE_KEY);
+  state.featureKind = FEATURE_KIND_VALUES.has(savedFeatureKind) ? savedFeatureKind : "";
+  elements.featureKind.value = state.featureKind;
 }
 
 function activateCustomPeriod() {
@@ -1666,6 +1694,11 @@ function bindEvents() {
   );
   elements.featureKind.addEventListener("change", () => {
     state.featureKind = elements.featureKind.value;
+    if (state.featureKind) {
+      localStorage.setItem(FEATURE_KIND_PREFERENCE_KEY, state.featureKind);
+    } else {
+      localStorage.removeItem(FEATURE_KIND_PREFERENCE_KEY);
+    }
     renderAll();
     fitCurrentAreaAfterRender();
     void loadPlaceRankingsForSelection().catch((error) => {
@@ -1790,6 +1823,7 @@ function mergedSearchIndex(primary, additional) {
 async function start() {
   applyLanguage();
   initialisePeriodControls();
+  initialiseFeatureKindControl();
   bindEvents();
   showWelcomeDialog();
   setupMapTableResizer();
