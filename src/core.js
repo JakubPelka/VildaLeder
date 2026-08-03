@@ -69,8 +69,10 @@ export function observationFilesForRange(trail, range) {
 export function filteredTrails(trails, filters) {
   const query = normalize(filters.query);
   return trails.filter((trail) => {
+    if (filters.featureKind && trail.featureKind !== filters.featureKind) return false;
     if (filters.county && trail.county !== filters.county) return false;
-    if (filters.municipality && trail.municipality !== filters.municipality) return false;
+    const municipalities = trail.municipalities || [trail.municipality].filter(Boolean);
+    if (filters.municipality && !municipalities.includes(filters.municipality)) return false;
     return !query || normalize(trail.name).includes(query);
   });
 }
@@ -160,12 +162,21 @@ export function resolveSpecies(catalog, query) {
   const needle = normalize(query).replace(/\s+—\s+.*/, "");
   if (!needle) return null;
   const exact = catalog.find((species) => {
-    const values = [species.vernacularName, species.scientificName, speciesLabel(species)];
+    const values = [
+      species.vernacularName,
+      species.scientificName,
+      speciesLabel(species),
+      ...Object.values(species.vernacularNames || {}),
+    ];
     return values.some((value) => normalize(value) === normalize(query) || normalize(value) === needle);
   });
   if (exact) return exact;
   const matches = catalog.filter((species) =>
-    [species.vernacularName, species.scientificName]
+    [
+      species.vernacularName,
+      species.scientificName,
+      ...Object.values(species.vernacularNames || {}),
+    ]
       .map(normalize)
       .some((value) => value.includes(needle)),
   );

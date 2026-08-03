@@ -157,12 +157,15 @@ def request_json(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Request JSON with bounded exponential backoff for transient failures."""
+    def redact(message: str) -> str:
+        return message.replace(secret, "[redacted]") if secret else message
+
     last_message = ""
     for attempt in range(attempts):
         try:
             response = session.request(method, url, **kwargs)
         except requests.RequestException as exc:
-            last_message = str(exc).replace(secret, "[redacted]")
+            last_message = redact(str(exc))
             retryable = True
         else:
             if response.ok:
@@ -170,7 +173,7 @@ def request_json(
                     return response.json()
                 except ValueError as exc:
                     raise RefreshError(f"Invalid JSON returned by {url}") from exc
-            last_message = response.text[:500].replace(secret, "[redacted]")
+            last_message = redact(response.text[:500])
             retryable = response.status_code == 429 or response.status_code >= 500
             if not retryable:
                 raise RefreshError(

@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260803-halmstad-scale-v1">
+    <link rel="stylesheet" href="styles.css?v=20260803-skandobs-location-v1">
   </head>
   <body>
     <header class="app-header">
@@ -44,9 +44,9 @@
             aria-selected="true"
             aria-controls="trail-panel"
             data-mode="trail"
-            data-i18n="byTrail"
+            data-i18n="byPlace"
           >
-            By trail
+            By trail or reserve
           </button>
           <button
             id="species-tab"
@@ -64,6 +64,14 @@
 
         <section class="filter-block" aria-labelledby="area-heading">
           <h2 id="area-heading" data-i18n="area">Area</h2>
+          <label>
+            <span data-i18n="placeType">Place type</span>
+            <select id="feature-kind">
+              <option value="" data-i18n="allPlaceTypes">Trails and nature reserves</option>
+              <option value="trail" data-i18n="trailsOnly">Trails</option>
+              <option value="reserve" data-i18n="reservesOnly">Nature reserves</option>
+            </select>
+          </label>
           <div class="two-columns">
             <label>
               <span data-i18n="county">County (län)</span>
@@ -98,17 +106,26 @@
               <input id="date-to" type="date">
             </label>
           </div>
+          <p class="help-text" data-i18n="maximumRangeNote">
+            The maximum observation search range is the last 10 years.
+          </p>
           <p id="snapshot-note" class="help-text"></p>
+          <p class="data-caveat" data-i18n="sensitiveSpeciesNote">
+            Some sensitive species are withheld or shown with generalized locations by source databases. Missing public points do not prove that a species is absent.
+          </p>
+          <button id="reset-filters" class="reset-filters" type="button" data-i18n="resetFilters">
+            Reset filters and selection
+          </button>
         </section>
 
         <section id="trail-panel" role="tabpanel" aria-labelledby="trail-tab">
-          <label class="search-label" for="trail-search" data-i18n="findTrail">Find a trail</label>
+          <label class="search-label" for="trail-search" data-i18n="findPlace">Find a trail or nature reserve</label>
           <input
             id="trail-search"
             type="search"
             autocomplete="off"
-            data-i18n-placeholder="trailPlaceholder"
-            placeholder="Trail name"
+            data-i18n-placeholder="placePlaceholder"
+            placeholder="Trail or nature reserve name"
           >
           <div id="trail-results" class="result-list"></div>
         </section>
@@ -141,17 +158,50 @@
         <section id="trail-details" class="details" aria-live="polite"></section>
       </aside>
 
-      <section class="map-panel" aria-label="Trail map">
-        <div id="map"></div>
-        <p id="map-observation-summary" class="map-observation-summary" data-count="0" data-i18n="mapSelectTrail">
-          Select a trail to show observations on the map.
-        </p>
-        <div class="map-key">
-          <span><i class="key-line"></i><span data-i18n="trail">Trail</span></span>
-          <span><i class="key-corridor"></i><span data-i18n="corridor">200 m corridor</span></span>
-          <strong data-i18n="redListLegend">Observation points · Red List</strong>
-          <div id="redlist-filters" class="redlist-filters" aria-live="polite"></div>
+      <section class="map-panel" aria-label="Trail and nature reserve map">
+        <div class="map-stage">
+          <div id="map"></div>
+          <button id="locate-user" class="locate-user" type="button" aria-pressed="false">
+            <span data-i18n="showMyLocation">Show my location</span>
+          </button>
+          <p id="location-status" class="location-status" role="status" aria-live="polite" hidden></p>
+          <p id="map-observation-summary" class="map-observation-summary" data-count="0" data-i18n="mapSelectTrail">
+            Select a trail to show observations on the map.
+          </p>
+          <div class="map-key">
+            <span><i class="key-line"></i><span data-i18n="trail">Trail</span></span>
+            <span><i class="key-reserve"></i><span data-i18n="natureReserve">Nature reserve</span></span>
+            <span><i class="key-corridor"></i><span data-i18n="corridor">200 m corridor</span></span>
+            <span><i class="key-cluster">12</i><span data-i18n="clusterLegend">Clustered observations</span></span>
+            <strong data-i18n="redListLegend">Observation points · Red List</strong>
+            <div id="redlist-filters" class="redlist-filters" aria-live="polite"></div>
+          </div>
         </div>
+        <section id="observation-table-panel" class="observation-table-panel" aria-labelledby="observation-table-title" hidden>
+          <div class="observation-table-header">
+            <div>
+              <h2 id="observation-table-title" data-i18n="visibleObservationsTitle">Observations in the current map view</h2>
+              <p id="observation-table-summary" class="help-text" aria-live="polite"></p>
+            </div>
+            <div id="observation-table-pagination" class="table-pagination"></div>
+          </div>
+          <div class="observation-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col" data-i18n="observationSpecies">Species</th>
+                  <th scope="col" data-i18n="observationDate">Date</th>
+                  <th scope="col" data-i18n="redListCategory">Red List</th>
+                  <th scope="col" data-i18n="source">Source</th>
+                </tr>
+              </thead>
+              <tbody id="observation-table-body"></tbody>
+            </table>
+          </div>
+          <p id="observation-table-empty" class="empty-state" data-i18n="noVisibleObservations" hidden>
+            No observations are visible in the current map view.
+          </p>
+        </section>
       </section>
     </main>
 
@@ -161,10 +211,14 @@
       ·
       <a href="https://www.slu.se/artdatabanken/" rel="noreferrer">SLU Artdatabanken / Artportalen</a>
       ·
+      <a href="https://skyddadnatur.naturvardsverket.se/" rel="noreferrer">Naturvårdsverket / Naturvårdsregistret</a>
+      ·
+      <a href="https://www.skandobs.se/" rel="noreferrer">Skandobs</a>
+      ·
       <a href="https://github.com/JakubPelka/VildaLeder" rel="noreferrer">GitHub</a>
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260803-halmstad-scale-v1"></script>
+    <script type="module" src="src/app.js?v=20260803-skandobs-location-v1"></script>
   </body>
 </html>

@@ -11,13 +11,14 @@ development. Static JSON remains an export format for the GitHub Pages pilot,
 not the canonical national datastore.
 
 The database is deliberately source-aware. An observation is stored once, then
-linked to any number of trails or reserves. Provider records from SOS, GBIF, or
-future sources point to that canonical observation, allowing cross-provider
-deduplication without discarding provenance.
+linked to any number of trails or reserves. Provider records from SOS,
+Skandobs, GBIF, or future sources point to that canonical observation, allowing
+cross-provider deduplication without discarding provenance.
 
 ```mermaid
 flowchart LR
     SOS[SOS / Artportalen] --> Sync[24 h incremental sync]
+    Skandobs[Skandobs public web API] --> Sync
     GBIF[GBIF / Darwin Core] --> Sync
     Taxonomy[Dyntaxa and taxon sources] --> Sync
     OSM[OSM trails] --> Spatial[PostGIS features]
@@ -93,6 +94,12 @@ scientific name and are never machine-invented silently.
 7. Export measured static artifacts while the GitHub Pages client remains in
    use; later serve the same model through the API.
 
+The experimental Skandobs path is deliberately narrower: query anonymous public
+map results by bounded date windows, select points intersecting the checked
+feature analysis geometries, fetch only those details, and persist an explicit
+field whitelist. The upstream detail response exposes personal/contact fields;
+none are staged or stored. A failed refresh retains the last complete snapshot.
+
 The nationwide retention, caching, redistribution, and sensitive-location rules
 must be approved before the full backfill. Only public/source-approved geometry
 is stored in the serving database.
@@ -121,6 +128,8 @@ Set the ignored `.env` values shown in `.env.example`, then run:
 docker compose up -d database
 .venv/bin/python scripts/migrate_postgis.py
 .venv/bin/python scripts/import_postgis.py
+.venv/bin/python scripts/sync_features.py --from-file data/features.json
+.venv/bin/python scripts/import_skandobs.py
 .venv/bin/python scripts/verify_postgis.py
 ```
 
