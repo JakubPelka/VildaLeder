@@ -99,6 +99,28 @@ class CatalogTests(unittest.TestCase):
         categories = {taxon["redlistCategory"] for taxon in self.index["taxa"]}
         self.assertTrue({"CR", "EN", "VU", "NT"}.issubset(categories))
 
+    def test_species_point_index_deduplicates_havsorn_and_tracks_feature_matches(self):
+        feature_ids = self.index["speciesPointFeatureIds"]
+        self.assertEqual(len(feature_ids), 388)
+        self.assertEqual(len(set(feature_ids)), len(feature_ids))
+        havsorn = next(taxon for taxon in self.index["taxa"] if taxon["taxonId"] == 100067)
+        manifests = self.index["speciesObservationFiles"][havsorn["pointBucket"]]
+        source_ids = set()
+        havsorn_count = 0
+        for manifest in manifests:
+            partition = json.loads((ROOT / manifest["path"]).read_text(encoding="utf-8"))
+            self.assertEqual(len(partition["records"]), manifest["count"])
+            for record in partition["records"]:
+                self.assertEqual(len(record), 9)
+                self.assertTrue(record[8])
+                self.assertTrue(all(0 <= index < len(feature_ids) for index in record[8]))
+                if record[2] != 100067:
+                    continue
+                self.assertNotIn(record[0], source_ids)
+                source_ids.add(record[0])
+                havsorn_count += 1
+        self.assertGreater(havsorn_count, 1_000)
+
     def test_prins_bertils_has_full_decade_and_bivrak_evidence(self):
         trail = next(
             trail for trail in self.catalog["trails"] if trail["name"] == "Prins Bertils stig"
@@ -110,6 +132,18 @@ class CatalogTests(unittest.TestCase):
         taxon = next(taxon for taxon in self.index["taxa"] if taxon["taxonId"] == 100100)
         self.assertEqual(taxon["scientificName"], "Pernis apivorus")
         self.assertEqual(taxon["redlistCategory"], "NT")
+
+    def test_storspov_ranking_matches_paarp_map_records(self):
+        trail = next(
+            trail
+            for trail in self.catalog["trails"]
+            if trail["name"] == "Hallandsleden Etappen Påarp - Mellbystrand"
+        )
+        records = [record for record in self.partition_records(trail) if record[2] == 100091]
+        taxon = next(taxon for taxon in self.index["taxa"] if taxon["taxonId"] == 100091)
+        ranked_count = sum(value for _, value in taxon["trails"][trail["id"]])
+        self.assertEqual(ranked_count, 252)
+        self.assertEqual(len(records), ranked_count)
 
     def test_snapshot_spans_about_ten_years(self):
         start = date.fromisoformat(self.catalog["meta"]["windowStart"])

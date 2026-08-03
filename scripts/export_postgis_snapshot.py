@@ -9,6 +9,7 @@ import os
 import shutil
 import sys
 import tempfile
+import zlib
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -23,6 +24,7 @@ except ModuleNotFoundError:  # Direct execution adds scripts/ rather than the re
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SPECIES_BUCKET_COUNT = 256
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,6 +33,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--catalog", type=Path, default=ROOT / "data" / "catalog.json")
     parser.add_argument("--search-index", type=Path, default=ROOT / "data" / "search-index.json")
     parser.add_argument("--observations-dir", type=Path, default=ROOT / "data" / "observations")
+    parser.add_argument(
+        "--species-observations-dir",
+        type=Path,
+        default=ROOT / "data" / "species-observations",
+    )
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL", ""))
     parser.add_argument("--start-date", type=date.fromisoformat)
     parser.add_argument("--end-date", type=date.fromisoformat, default=date.today())
@@ -90,6 +97,96 @@ def compact_record(row: tuple[Any, ...]) -> list[Any]:
         round(float(longitude), 6),
         compact_number(uncertainty),
     ]
+
+
+def species_bucket(taxon_external_id: Any) -> str:
+    checksum = zlib.crc32(str(taxon_external_id).encode("utf-8"))
+    return f"{checksum % SPECIES_BUCKET_COUNT:02x}"
+
+
+def export_species_partitions(
+    connection: psycopg.Connection[Any],
+    feature_database_ids: dict[int, str],
+    output_root: Path,
+    snapshot_end: date,
+    start: date,
+    end: date,
+) -> tuple[dict[str, list[dict[str, Any]]], int]:
+    """Export each public SOS point once, with compact matched-feature ordinals."""
+    feature_ordinals = {
+        database_id: ordinal
+        for ordinal, (database_id, _) in enumerate(
+            sorted(feature_database_ids.items(), key=lambda item: item[1])
+        )
+    }
+    manifests: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    current_partition = ""
+    bucket_records: dict[str, list[list[Any]]] = defaultdict(list)
+    total = 0
+
+    def flush_partition(partition: str) -> None:
+        if not partition:
+            return
+        for bucket, records in sorted(bucket_records.items()):
+            records.sort(key=lambda record: (record[1], str(record[0])), reverse=True)
+            relative = Path(bucket) / f"{partition}.json"
+            write_json(output_root / relative, {"schemaVersion": 1, "records": records})
+            manifests[bucket].append(
+                {
+                    "path": str(Path("data") / "species-observations" / relative),
+                    "start": min(record[1] for record in records),
+                    "end": max(record[1] for record in records),
+                    "count": len(records),
+                }
+            )
+        bucket_records.clear()
+
+    query = """SELECT min(record.source_record_id),
+                      observed.observed_on,
+                      external.external_id,
+                      observed.individual_count,
+                      observed.verified,
+                      observed.uncertain_identification,
+                      ST_Y(observed.geom),
+                      ST_X(observed.geom),
+                      observed.coordinate_uncertainty_m,
+                      array_agg(DISTINCT matched.feature_id ORDER BY matched.feature_id)
+               FROM vildaleder.observation_feature matched
+               JOIN vildaleder.observation observed USING (observation_id)
+               JOIN vildaleder.observation_source_record record USING (observation_id)
+               JOIN vildaleder.data_source source ON source.source_id = record.source_id
+               LEFT JOIN vildaleder.taxon_external_id external
+                 ON external.taxon_id = observed.taxon_id
+                AND external.source_id = source.source_id
+               WHERE matched.feature_id = ANY(%s)
+                 AND source.source_key = 'sos'
+                 AND NOT observed.is_deleted
+                 AND observed.location_is_public
+                 AND NOT record.is_deleted
+                 AND observed.observed_on BETWEEN %s AND %s
+                 AND external.external_id IS NOT NULL
+               GROUP BY observed.observation_id, external.external_id
+               ORDER BY observed.observed_on, min(record.source_record_id)"""
+    with connection.cursor(name="species_point_export") as cursor:
+        cursor.itersize = 10_000
+        cursor.execute(query, (list(feature_database_ids), start, end))
+        for row in cursor:
+            partition = partition_name(row[1].isoformat(), snapshot_end)
+            if current_partition and partition != current_partition:
+                flush_partition(current_partition)
+            current_partition = partition
+            compact = compact_record(row[:9])
+            compact.append(
+                sorted(
+                    feature_ordinals[feature_id]
+                    for feature_id in row[9]
+                    if feature_id in feature_ordinals
+                )
+            )
+            bucket_records[species_bucket(row[2])].append(compact)
+            total += 1
+    flush_partition(current_partition)
+    return dict(sorted(manifests.items())), total
 
 
 def export_feature_partitions(
@@ -222,6 +319,7 @@ def search_index(
                     "vernacularName": swedish,
                     "organismGroup": group,
                     "redlistCategory": category,
+                    "pointBucket": species_bucket(external_id),
                     "trails": dict(sorted(taxon_counts[str(external_id)].items())),
                 }
             )
@@ -268,6 +366,12 @@ def export(args: argparse.Namespace) -> dict[str, int]:
         start = args.start_date or args.end_date - timedelta(days=3_649)
 
         temporary_root = Path(tempfile.mkdtemp(prefix="vildaleder-observations-", dir=args.observations_dir.parent))
+        temporary_species_root = Path(
+            tempfile.mkdtemp(
+                prefix="vildaleder-species-observations-",
+                dir=args.species_observations_dir.parent,
+            )
+        )
         exported = []
         total = 0
         try:
@@ -301,8 +405,19 @@ def export(args: argparse.Namespace) -> dict[str, int]:
                 args.end_date,
                 generated_at,
             )
+            species_manifests, species_observation_total = export_species_partitions(
+                connection,
+                {database_id: public_id for public_id, database_id in database_features.items()},
+                temporary_species_root,
+                args.end_date,
+                start,
+                args.end_date,
+            )
+            index_data["speciesPointFeatureIds"] = sorted(database_features)
+            index_data["speciesObservationFiles"] = species_manifests
         except Exception:
             shutil.rmtree(temporary_root, ignore_errors=True)
+            shutil.rmtree(temporary_species_root, ignore_errors=True)
             raise
 
     catalog = {
@@ -323,24 +438,38 @@ def export(args: argparse.Namespace) -> dict[str, int]:
         "trails": sorted(exported, key=lambda item: (item["name"].casefold(), item["id"])),
     }
     backup = args.observations_dir.with_name(args.observations_dir.name + ".previous")
+    species_backup = args.species_observations_dir.with_name(
+        args.species_observations_dir.name + ".previous"
+    )
     if backup.exists():
         shutil.rmtree(backup)
+    if species_backup.exists():
+        shutil.rmtree(species_backup)
     if args.observations_dir.exists():
         args.observations_dir.replace(backup)
-    temporary_root.replace(args.observations_dir)
+    if args.species_observations_dir.exists():
+        args.species_observations_dir.replace(species_backup)
     try:
+        temporary_root.replace(args.observations_dir)
+        temporary_species_root.replace(args.species_observations_dir)
         write_json(args.catalog, catalog)
         write_json(args.search_index, index_data)
     except Exception:
         if args.observations_dir.exists():
             shutil.rmtree(args.observations_dir)
+        if args.species_observations_dir.exists():
+            shutil.rmtree(args.species_observations_dir)
         if backup.exists():
             backup.replace(args.observations_dir)
+        if species_backup.exists():
+            species_backup.replace(args.species_observations_dir)
         raise
     shutil.rmtree(backup, ignore_errors=True)
+    shutil.rmtree(species_backup, ignore_errors=True)
     return {
         "features": len(exported),
         "observations": total,
+        "speciesObservations": species_observation_total,
         "taxa": len(index_data["taxa"]),
     }
 

@@ -110,6 +110,12 @@ inputs are shown only after selecting the custom-period preset, and editing
 either date always activates that preset. The map's location control displays
 the user's browser-provided position and accuracy, then refreshes the marker
 every two seconds until tracking is stopped.
+Species-first search loads a bucketed, time-partitioned SOS point index and
+shows every deduplicated observation of the chosen species that intersects at
+least one currently filtered trail/reserve buffer. The same observation is
+drawn once even when several tourist objects overlap; selecting one object then
+narrows the map and table to that object's matches. Scattered observations
+outside all trail and reserve buffers are intentionally not included.
 Hovering a trail or reserve on the map shows its name. Clicking it selects the
 place and opens a compact source card with its municipality and size plus the
 OSM relation link for a trail or the Skyddad natur/Naturvårdsverket link for a
@@ -146,6 +152,10 @@ are recursively split before the SOS 10,000-result pagination edge and records
 are deduplicated by occurrence ID. Publication is refused if even one spatial
 feature is missing, the export is not exactly 3,650 days, a data file approaches
 GitHub's 100 MB limit, or the test suite fails.
+The export includes both place-oriented partitions and a second deduplicated
+species-point index. The latter uses 256 stable taxon buckets, small time
+partitions, and compact feature ordinals so a species map respects län/kommun
+and place-type filters without downloading every selected place's full history.
 
 On the always-on server, install the checked-in user timer and put only local
 paths and non-secret tuning values in its ignored environment file:

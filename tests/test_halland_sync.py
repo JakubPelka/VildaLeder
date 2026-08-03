@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from scripts.export_postgis_snapshot import compact_record
+from scripts.export_postgis_snapshot import compact_record, species_bucket
 from scripts.sync_halland_postgis import complete_feature_ids, ordered_features, year_windows
 
 
@@ -17,6 +17,10 @@ class HallandSyncTests(unittest.TestCase):
         )
         self.assertEqual(empty_count[3], "")
         self.assertIsNone(empty_count[7])
+
+    def test_species_point_bucket_is_stable_and_bounded(self):
+        self.assertEqual(species_bucket(100067), species_bucket("100067"))
+        self.assertRegex(species_bucket(100067), r"^[0-9a-f]{2}$")
 
     def test_sos_import_normalises_empty_numeric_fields(self):
         source = Path("scripts/sync_halland_postgis.py").read_text(encoding="utf-8")

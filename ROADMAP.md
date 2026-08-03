@@ -22,6 +22,9 @@ The repository now contains a working vertical slice spanning parts of phases
 - a checked-in ten-year Halland snapshot covering all 175 trails and 213 nature
   reserves, with 1,300,530 canonical Artportalen/SOS observations and 1,907,193
   trail/reserve matches, with complete pagination beyond the 10,000-result edge;
+- a second deduplicated species-map export of those 1,300,530 SOS points, using
+  compact feature ordinals plus 256 taxon buckets and small time partitions so
+  map counts remain responsive without losing buffer-filter semantics;
 - an experimental ten-year Halland Skandobs adapter: 672 public predator reports
   checked, 74 public wolf/lynx reports retained, and 90 trail/reserve matches,
   with a strict public-field whitelist and graceful stale-snapshot fallback;
@@ -38,9 +41,10 @@ The repository now contains a working vertical slice spanning parts of phases
 - a keyboard- and pointer-accessible splitter that lets the user resize the map
   and observation table while retaining the chosen ratio locally;
 - trail-first and species-first (`havsörn` included) journeys;
-- species-first maps that immediately show every available, deduplicated public
-  point for the chosen species in the active area before a trail or reserve is
-  selected;
+- species-first maps backed by a bucketed SOS/Skandobs point index that
+  immediately show every available, deduplicated public point for the chosen
+  species intersecting the active trail/reserve buffers before one object is
+  selected, while deliberately excluding observations outside tourist places;
 - English, Swedish, and Polish interface dictionaries;
 - a place-type filter and a full reset control for filters, searches, selected
   feature, dates, Red List toggles, and map extent;

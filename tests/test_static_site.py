@@ -128,6 +128,9 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("state.skandobs.matches", app)
         self.assertIn("mapSpeciesAreaPoints", app)
         self.assertIn("(state.searchIndex.taxa || [])", app)
+        self.assertIn("speciesObservationFiles", app)
+        self.assertIn("speciesPointFeatureIndex", app)
+        self.assertIn("async function areaSpeciesObservations()", app)
         self.assertIn("function featurePopup(feature)", app)
         self.assertIn("showFeaturePopup(lngLat, featurePopup(feature))", app)
         self.assertIn("showFeatureTooltip", map_source)
@@ -148,6 +151,8 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("scripts/sync_skandobs.py", refresh)
         self.assertIn("scripts/export_postgis_snapshot.py", refresh)
         self.assertIn('git push origin "HEAD:${REFRESH_BRANCH}"', refresh)
+        self.assertIn("speciesPointFeatureIds", refresh)
+        self.assertIn("data/species-observations", refresh)
         self.assertIn("SNAPSHOT_POLL_MS", (ROOT / "src" / "app.js").read_text(encoding="utf-8"))
         self.assertIsNone(re.search(r"[a-f0-9]{32}", workflow, flags=re.IGNORECASE))
 

@@ -132,6 +132,7 @@ from pathlib import Path
 
 features = json.loads(Path("data/features.json").read_text(encoding="utf-8"))["features"]
 catalog = json.loads(Path("data/catalog.json").read_text(encoding="utf-8"))
+search_index = json.loads(Path("data/search-index.json").read_text(encoding="utf-8"))
 exported = catalog["trails"]
 if len(exported) != len(features):
     raise SystemExit(f"Refusing partial publication: {len(exported)}/{len(features)} places")
@@ -139,17 +140,31 @@ start = date.fromisoformat(catalog["meta"]["windowStart"])
 end = date.fromisoformat(catalog["meta"]["windowEnd"])
 if (end - start).days + 1 != 3650:
     raise SystemExit("Refusing publication outside the exact ten-year window")
+expected_feature_ids = sorted(feature["id"] for feature in features)
+if search_index.get("speciesPointFeatureIds") != expected_feature_ids:
+    raise SystemExit("Refusing publication with a mismatched species-point feature index")
+species_files = [
+    item
+    for manifests in search_index.get("speciesObservationFiles", {}).values()
+    for item in manifests
+]
+if not species_files or any(not Path(item["path"]).is_file() for item in species_files):
+    raise SystemExit("Refusing publication with an incomplete species-point snapshot")
 oversized = [path for path in Path("data").rglob("*") if path.is_file() and path.stat().st_size >= 95_000_000]
 if oversized:
     raise SystemExit("Refusing files near GitHub's 100 MB limit: " + ", ".join(map(str, oversized)))
-print(json.dumps({"features": len(exported), "matches": sum(item["observationTotal"] for item in exported)}))
+print(json.dumps({
+    "features": len(exported),
+    "matches": sum(item["observationTotal"] for item in exported),
+    "speciesPoints": sum(item["count"] for item in species_files),
+}))
 PY
 
 "${PYTHON_BIN}" -m unittest discover -s tests -v
 
 git config user.name "VildaLeder server refresh"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-git add data/catalog.json data/features.json data/search-index.json data/skandobs.json data/observations
+git add data/catalog.json data/features.json data/search-index.json data/skandobs.json data/observations data/species-observations
 if git diff --cached --quiet; then
   log "No publishable data changes"
   exit 0

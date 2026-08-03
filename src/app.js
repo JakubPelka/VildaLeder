@@ -11,8 +11,8 @@ import {
   resolveSpecies,
   speciesCatalog,
   speciesLabel,
-} from "./core.js?v=20260803-species-map-tooltips-v6";
-import { translations, translator } from "./i18n.js?v=20260803-species-map-tooltips-v6";
+} from "./core.js?v=20260803-sos-species-points-v7";
+import { translations, translator } from "./i18n.js?v=20260803-sos-species-points-v7";
 import {
   clearUserLocation,
   fitAllTrails,
@@ -24,7 +24,7 @@ import {
   setUserLocation,
   showFeaturePopup,
   showObservationPopup,
-} from "./map.js?v=20260803-species-map-tooltips-v6";
+} from "./map.js?v=20260803-sos-species-points-v7";
 
 const MAX_TAXA_SHOWN = 100;
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
@@ -44,6 +44,7 @@ const state = {
   searchIndex: null,
   skandobs: null,
   skandobsRecordById: new Map(),
+  speciesPointFeatureIndex: new Map(),
   taxonById: new Map(),
   partitionCache: new Map(),
   loadedSelection: null,
@@ -361,8 +362,17 @@ async function loadPartition(file) {
 }
 
 function expandObservation(record) {
-  const [sourceId, day, taxonId, individualCount, flags, latitude, longitude, uncertaintyMeters] =
-    record;
+  const [
+    sourceId,
+    day,
+    taxonId,
+    individualCount,
+    flags,
+    latitude,
+    longitude,
+    uncertaintyMeters,
+    featureIndexes,
+  ] = record;
   const taxon = state.taxonById.get(String(taxonId)) || {};
   const hasArtportalenId = /^\d+$/.test(String(sourceId));
   return {
@@ -379,6 +389,7 @@ function expandObservation(record) {
     latitude,
     longitude,
     uncertaintyMeters,
+    featureIndexes: featureIndexes || [],
     sourceUrl: hasArtportalenId
       ? `https://www.artportalen.se/sighting/${sourceId}`
       : null,
@@ -426,28 +437,60 @@ function expandSkandobsObservation(record) {
   };
 }
 
-function areaSpeciesObservations() {
+async function areaSpeciesObservations() {
   if (!state.selectedSpecies || !state.skandobs) return [];
+  const selectedTaxonId = String(state.selectedSpecies.taxonId);
+  const range = currentRange();
+  const allowedFeatureIndexes = new Set(
+    areaTrails()
+      .map((feature) => state.speciesPointFeatureIndex.get(feature.id))
+      .filter((index) => index !== undefined),
+  );
+  const bucketFiles = state.selectedSpecies.pointBucket
+    ? state.searchIndex.speciesObservationFiles?.[state.selectedSpecies.pointBucket] || []
+    : [];
+  const files = observationFilesForRange({ observationFiles: bucketFiles }, range);
+  const partitions = await Promise.all(files.map(loadPartition));
+  const sosObservations = partitions
+    .flatMap((partition) => (partition.records || []).map(expandObservation))
+    .filter((observation) => String(observation.taxonId) === selectedTaxonId)
+    .filter((observation) =>
+      observation.featureIndexes.some((index) => allowedFeatureIndexes.has(index)),
+    );
   const observationIds = new Set();
   areaTrails().forEach((feature) => {
     (state.skandobs.matches?.[feature.id] || []).forEach((observationId) =>
       observationIds.add(observationId),
     );
   });
-  return filterObservations(
-    [...observationIds]
+  const skandobsObservations = [...observationIds]
       .map((observationId) => state.skandobsRecordById.get(observationId))
       .filter(Boolean)
       .filter(
-        (record) => String(record.taxonId) === String(state.selectedSpecies.taxonId),
+        (record) => String(record.taxonId) === selectedTaxonId,
       )
-      .map(expandSkandobsObservation),
-    currentRange(),
+      .map(expandSkandobsObservation);
+  return filterObservations(
+    [...sosObservations, ...skandobsObservations],
+    range,
   );
 }
 
-function renderAreaSpeciesObservations() {
-  const observations = areaSpeciesObservations();
+async function renderAreaSpeciesObservations(request) {
+  setObservations([]);
+  setObservationTableRows([]);
+  renderRedlistFilters([]);
+  elements.mapObservationSummary.textContent = t("loadingSpeciesMap");
+  let observations;
+  try {
+    observations = await areaSpeciesObservations();
+  } catch (error) {
+    if (request !== state.detailsRequest) return;
+    console.error(error);
+    elements.mapObservationSummary.textContent = t("speciesMapLoadError");
+    return;
+  }
+  if (request !== state.detailsRequest) return;
   renderRedlistFilters(observations);
   const visibleObservations = observations.filter(
     (observation) =>
@@ -463,15 +506,15 @@ async function renderTrailDetails() {
   const trail = state.catalog.trails.find((candidate) => candidate.id === state.selectedTrailId);
   elements.trailDetails.replaceChildren();
   if (!trail) {
+    elements.trailDetails.append(node("p", "empty-state", t("selectTrail")));
     if (state.mode === "species" && state.selectedSpecies) {
-      renderAreaSpeciesObservations();
+      await renderAreaSpeciesObservations(request);
     } else {
       setObservations([]);
       setObservationTableRows([]);
       renderRedlistFilters([]);
       renderMapObservationSummary(null, 0);
     }
-    elements.trailDetails.append(node("p", "empty-state", t("selectTrail")));
     return;
   }
   if (!trail.observationCoverage) {
@@ -1338,6 +1381,9 @@ async function start() {
     );
     state.catalog = mergedCatalog(observationCatalog, featureCatalog);
     state.searchIndex = mergedSearchIndex(searchIndex, skandobs);
+    state.speciesPointFeatureIndex = new Map(
+      (searchIndex.speciesPointFeatureIds || []).map((featureId, index) => [featureId, index]),
+    );
     state.taxonById = new Map(
       (state.searchIndex.taxa || []).map((taxon) => [String(taxon.taxonId), taxon]),
     );
