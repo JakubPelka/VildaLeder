@@ -286,6 +286,11 @@ services.
   ingest new and changed source records, recheck a rolling correction window,
   retain source identifiers and provenance, and run a less frequent full
   reconciliation.
+- Treat the ten-year search range as a UI and export limit, not an automatic
+  PostGIS retention boundary. Preserve observations that age out of that range
+  so the historical archive grows year by year; remove or suppress records only
+  for explicit source corrections, withdrawals, privacy obligations, or a
+  separately approved retention policy.
 - Keep observations, trail lines and 200-metre corridors, nature-reserve
   boundaries, taxonomy, and administrative areas as separate spatial entities;
   compute and version their intersections in the local data platform.

@@ -152,6 +152,15 @@ are recursively split before the SOS 10,000-result pagination edge and records
 are deduplicated by occurrence ID. Publication is refused if even one spatial
 feature is missing, the export is not exactly 3,650 days, a data file approaches
 GitHub's 100 MB limit, or the test suite fails.
+
+The 3,650-day limit is a query and public-export boundary, not a PostGIS
+retention policy. Daily refreshes upsert new and corrected records but do not
+delete an observation merely because it has aged out of the public ten-year
+window. Consequently, after another year the database can retain eleven years
+of history while the browser still offers at most the most recent ten years.
+Historical removal is reserved for explicit source corrections, withdrawals,
+privacy requirements, or a separately approved retention policy.
+
 The export includes both place-oriented partitions and a second deduplicated
 species-point index. The latter uses 256 stable taxon buckets, small time
 partitions, and compact feature ordinals so a species map respects län/kommun

@@ -98,6 +98,8 @@ cd "${run_directory}/repo"
 log "Applying database migrations"
 "${PYTHON_BIN}" scripts/migrate_postgis.py
 
+log "Retaining all historical PostGIS observations; refresh windows do not prune by age"
+
 log "Refreshing Halland OSM trails and Naturvårdsregistret reserves"
 "${PYTHON_BIN}" scripts/sync_features.py --database-url "${DATABASE_URL}"
 

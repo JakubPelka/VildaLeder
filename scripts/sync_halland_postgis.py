@@ -5,6 +5,10 @@ The upstream API is queried in bounded one-year feature windows. Each completed
 window is committed independently and recorded in database metadata, so an
 interrupted run can resume without repeating successful requests. Observation
 records are canonicalised once and linked to every queried trail or reserve.
+
+The requested date range controls upstream reconciliation and public snapshot
+coverage; it is not a database-retention boundary. Observations already stored
+outside the range remain in PostGIS so the historical archive grows over time.
 """
 
 from __future__ import annotations
@@ -363,6 +367,10 @@ def import_window(
                RETURNING observation_id""",
             (sos_source_id, generated_at, generated_at),
         ).rowcount
+        # Replace only the feature matches covered by this correction window.
+        # The canonical observations themselves are intentionally append-only
+        # with respect to age: an observation falling outside a later ten-year
+        # refresh remains available in PostGIS for historical use.
         connection.execute(
             """DELETE FROM vildaleder.observation_feature matched
                USING vildaleder.observation observed,
