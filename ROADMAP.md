@@ -19,8 +19,9 @@ The repository now contains a working vertical slice spanning parts of phases
 - reserve analysis geometries covering the complete protected polygon plus a
   200-metre outward buffer, and cross-municipality membership-aware filters;
 - metric 200-metre corridors generated in SWEREF 99 TM;
-- ten years and roughly 274,000 deduplicated trail-observation matches from
-  Artportalen/SOS, with recursive date splitting beyond the 10,000-result edge;
+- a checked-in ten-year Halland snapshot covering all 175 trails and 213 nature
+  reserves, with 1,300,530 canonical Artportalen/SOS observations and 1,907,193
+  trail/reserve matches, with complete pagination beyond the 10,000-result edge;
 - an experimental ten-year Halland Skandobs adapter: 672 public predator reports
   checked, 74 public wolf/lynx reports retained, and 90 trail/reserve matches,
   with a strict public-field whitelist and graceful stale-snapshot fallback;
@@ -30,9 +31,16 @@ The repository now contains a working vertical slice spanning parts of phases
 - Red List category ordering from the SOS observation payload;
 - map-level Red List category counts, zero-category suppression, and per-class
   visibility toggles;
-- numbered map clusters for overlapping coordinates and a viewport-synchronised,
-  paginated observation table with row-to-map navigation;
+- numbered map clusters for overlapping coordinates and a selected-place,
+  paginated observation table with sortable columns and row-to-map navigation;
+- map hover labels and click cards with authoritative OSM or Skyddad natur
+  source links for every selectable trail and reserve;
+- a keyboard- and pointer-accessible splitter that lets the user resize the map
+  and observation table while retaining the chosen ratio locally;
 - trail-first and species-first (`havsörn` included) journeys;
+- species-first maps that immediately show every available, deduplicated public
+  point for the chosen species in the active area before a trail or reserve is
+  selected;
 - English, Swedish, and Polish interface dictionaries;
 - a place-type filter and a full reset control for filters, searches, selected
   feature, dates, Red List toggles, and map extent;
@@ -43,12 +51,16 @@ The repository now contains a working vertical slice spanning parts of phases
 - browser, geometry, catalog-integrity, privacy, and static-asset checks;
 - a PostgreSQL 18/PostGIS 3.6 target schema, repeatable migrations, an idempotent
   snapshot importer, source-aware multilingual taxon names, and integration CI;
-- CI and GitHub Pages deployment workflows.
+- CI and GitHub Pages deployment workflows;
+- an always-on-server systemd routine at 03:00 Europe/Stockholm that refreshes
+  spatial features, incrementally reconciles SOS and Skandobs, verifies and
+  exports an all-or-nothing snapshot, pushes it to `main`, and causes open
+  clients to reload after the deployed generation marker changes.
 
 This is a functional pilot, not completion of the phases. The most important
 open gates are explicit Red List 2025 provenance, multilingual taxon names,
-Halland-wide observation ingestion, shareable URL
-state, production map tiles, licensing review, national source ingestion, and an
+shareable URL state, production map tiles, licensing review, national source
+ingestion, and an
 HTTPS serving API over the PostGIS store described in Phase 4.
 
 ## Delivery principles
@@ -275,6 +287,19 @@ services.
   explicit per-feature coverage in PostGIS. Static pilot exports must include
   only complete windows; interrupted or partial ingestion must never look like
   a valid zero-observation result.
+- Add a GBIF enrichment adapter after the SOS baseline. Exclude the complete
+  Artportalen GBIF dataset (`38b4c89f-584c-41bb-bd8f-cd1def33e92f`) at query or
+  asynchronous-download time, because those records mirror the SOS source that
+  is already canonical in VildaLeder.
+- Retain `gbifID`, `datasetKey`, `occurrenceID`, `catalogNumber`, licence, and
+  publisher for every GBIF source record. Attach a second source record to an
+  existing canonical observation only when a stable shared identifier proves
+  equivalence; keep same-taxon/date/coordinate fingerprints as review signals,
+  not automatic merges that could collapse legitimate group observations.
+- Pilot GBIF with bounded Halland/date queries, then use authenticated,
+  asynchronous GBIF downloads for national backfills. The occurrence-search API
+  is suitable for interactive tests but pages at 300 records and has a hard
+  100,000-record query ceiling.
 - Fetch raw point evidence from the VildaLeder service only after a user selects
   a trail, reserve, or species result; continue to expose authoritative source
   links and data-quality context.
@@ -436,8 +461,8 @@ functionality, reliability, convenience, and operations.
 |---|---|
 | OSM route relations are incomplete or fragmented | Pilot QA, source-version tracking, deterministic exclusion reasons |
 | Public Overpass instances do not scale nationally | Regional extracts, incremental ingest, caching, controlled refresh jobs |
-| SLU API key cannot be exposed on GitHub Pages | GitHub Actions secret or backend proxy; never ship it to the client |
-| GBIF and SOS overlap or disagree | Preserve source IDs, deduplicate conservatively, display provenance |
+| SLU API key cannot be exposed on GitHub Pages | Keep it in the ignored local-server environment/key file or a future backend secret store; never ship it to the client |
+| GBIF and SOS overlap or disagree | Exclude the Artportalen GBIF dataset, preserve all remaining source IDs, merge only on stable shared identifiers, and display provenance |
 | Observation counts mostly measure observer effort | Show raw inputs, per-km and distinct-date context, avoid probability claims |
 | Sensitive observations could attract disturbance | Use public/source-approved geometry only; suppress or generalise presentation when required |
 | Skandobs exposes a web API without a clear public integration contract | Keep ingestion best-effort and source-isolated, retain the last good snapshot, export only a privacy whitelist, and obtain written terms before dependable commercial use |

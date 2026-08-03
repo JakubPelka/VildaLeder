@@ -1,0 +1,17 @@
+[Unit]
+Description=Refresh VildaLeder trails, reserves, observations, and public snapshot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.config/vildaleder/server-refresh.env
+ExecStartPre=/usr/bin/bash %h/GitHub/VildaLeder/scripts/server_refresh.sh --check
+ExecStart=/usr/bin/bash %h/GitHub/VildaLeder/scripts/server_refresh.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+TimeoutStartSec=8h
+
+[Install]
+WantedBy=default.target

@@ -31,6 +31,7 @@ let mapReady = false;
 let resizeObserver;
 let resizeTimer;
 let activePopup;
+let hoverPopup;
 let observationByMarkerId = new Map();
 let callbacks = {};
 
@@ -306,7 +307,9 @@ function bindMapInteractions() {
     const trailFeature = features.find((feature) =>
       [LAYER_TRAILS, LAYER_RESERVES].includes(feature.layer.id),
     );
-    if (trailFeature) callbacks.onTrailClick?.(trailFeature.properties.trailId);
+    if (trailFeature) {
+      callbacks.onTrailClick?.(trailFeature.properties.trailId, event.lngLat);
+    }
   });
 
   [LAYER_OBSERVATION_CLUSTERS, LAYER_OBSERVATIONS, LAYER_TRAILS, LAYER_RESERVES].forEach((layerId) => {
@@ -317,8 +320,37 @@ function bindMapInteractions() {
       map.getCanvas().style.cursor = "";
     });
   });
+  [LAYER_TRAILS, LAYER_RESERVES].forEach((layerId) => {
+    map.on("mouseenter", layerId, showFeatureTooltip);
+    map.on("mousemove", layerId, moveFeatureTooltip);
+    map.on("mouseleave", layerId, hideFeatureTooltip);
+  });
 
   map.on("moveend", notifyViewportChange);
+}
+
+function showFeatureTooltip(event) {
+  const name = event.features?.[0]?.properties?.name;
+  if (!name) return;
+  hoverPopup?.remove();
+  hoverPopup = new maplibregl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+    className: "feature-name-tooltip",
+    offset: 10,
+  })
+    .setLngLat(event.lngLat)
+    .setText(name)
+    .addTo(map);
+}
+
+function moveFeatureTooltip(event) {
+  hoverPopup?.setLngLat(event.lngLat);
+}
+
+function hideFeatureTooltip() {
+  hoverPopup?.remove();
+  hoverPopup = null;
 }
 
 export function setTrails(trails, visibleTrailIds, selectedTrailId) {
@@ -445,6 +477,14 @@ export function clearUserLocation() {
 }
 
 export function showObservationPopup(observation, lngLat, content) {
+  showMapPopup(lngLat, content);
+}
+
+export function showFeaturePopup(lngLat, content) {
+  showMapPopup(lngLat, content);
+}
+
+function showMapPopup(lngLat, content) {
   activePopup?.remove();
   activePopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: "300px" })
     .setLngLat(lngLat)

@@ -133,6 +133,23 @@ def completed_features(connection: psycopg.Connection[Any]) -> set[str]:
     }
 
 
+def complete_feature_ids(keys: Iterable[str], minimum_days: int) -> set[str]:
+    """Return features with a recorded complete window at least this long."""
+    completed: set[str] = set()
+    for key in keys:
+        parts = key.split(":")
+        if len(parts) != 4 or parts[0] != "sos_complete":
+            continue
+        try:
+            start = date.fromisoformat(parts[2])
+            end = date.fromisoformat(parts[3])
+        except ValueError:
+            continue
+        if (end - start).days + 1 >= minimum_days:
+            completed.add(parts[1])
+    return completed
+
+
 def public_feature_ids(connection: psycopg.Connection[Any]) -> dict[str, int]:
     return {
         f"{source_key}-{source_feature_id}": feature_id
@@ -346,6 +363,17 @@ def import_window(
                RETURNING observation_id""",
             (sos_source_id, generated_at, generated_at),
         ).rowcount
+        connection.execute(
+            """DELETE FROM vildaleder.observation_feature matched
+               USING vildaleder.observation observed,
+                     vildaleder.observation_source_record source_record
+               WHERE matched.feature_id = %s
+                 AND matched.observation_id = observed.observation_id
+                 AND source_record.observation_id = observed.observation_id
+                 AND source_record.source_id = %s
+                 AND observed.observed_on BETWEEN %s AND %s""",
+            (feature_database_id, sos_source_id, window_start, window_end),
+        )
         matches = connection.execute(
             """INSERT INTO vildaleder.observation_feature(
                    observation_id, feature_id, match_method,
@@ -399,9 +427,10 @@ def mark_complete(
     with psycopg.connect(database_url) as connection:
         existing = completed_windows(connection)
         complete = completed_features(connection)
+        complete_ids = complete_feature_ids(complete, (end - start).days + 1)
         for feature_id in feature_ids:
             target = complete_key(feature_id, start, end)
-            if target in complete:
+            if feature_id in complete_ids:
                 marked += 1
             elif all(
                 coverage_key(feature_id, left, right) in existing
@@ -437,7 +466,9 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
     with psycopg.connect(args.database_url) as connection:
         database_ids = public_feature_ids(connection)
         done = set() if args.force else completed_windows(connection)
-        complete = set() if args.force else completed_features(connection)
+        complete = set() if args.force else complete_feature_ids(
+            completed_features(connection), args.days
+        )
     missing_features = [feature["id"] for feature in features if feature["id"] not in database_ids]
     if missing_features:
         raise RuntimeError(f"Features missing from PostGIS: {', '.join(missing_features[:5])}")
@@ -448,7 +479,7 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
         for left, right in windows
         if args.force
         or (
-            complete_key(feature["id"], window_start, args.end_date) not in complete
+            feature["id"] not in complete
             and coverage_key(feature["id"], left, right) not in done
         )
     ]
@@ -512,10 +543,12 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
         windows,
     )
     with psycopg.connect(args.database_url) as connection:
-        stats["dailyAggregates"] = connection.execute(
-            "SELECT vildaleder.refresh_daily_feature_taxon(%s, %s)",
-            (window_start, args.end_date),
-        ).fetchone()[0]
+        stats["dailyAggregates"] = 0
+        if tasks:
+            stats["dailyAggregates"] = connection.execute(
+                "SELECT vildaleder.refresh_daily_feature_taxon(%s, %s)",
+                (window_start, args.end_date),
+            ).fetchone()[0]
         connection.execute(
             """INSERT INTO vildaleder.sync_run(
                    source_id, mode, started_at, completed_at, window_start, window_end,

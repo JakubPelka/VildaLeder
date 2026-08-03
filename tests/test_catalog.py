@@ -24,13 +24,14 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(len(partition["records"]), manifest["count"])
             yield from partition["records"]
 
-    def test_catalog_contains_complete_halmstad_and_kungsbacka_features(self):
+    def test_catalog_contains_complete_halland_features(self):
         features = self.catalog["trails"]
         trails = [feature for feature in features if feature["featureKind"] == "trail"]
         reserves = [feature for feature in features if feature["featureKind"] == "reserve"]
         self.assertEqual(self.catalog["schemaVersion"], 2)
-        self.assertGreaterEqual(len(features), 125)
-        self.assertGreaterEqual(len(reserves), 20)
+        self.assertEqual(len(features), 388)
+        self.assertEqual(len(trails), 175)
+        self.assertEqual(len(reserves), 213)
         self.assertTrue(
             {8_394_095, 8_394_110, 8_394_180, 9_158_828, 13_262_342}.issubset(
                 {trail["osmRelationId"] for trail in trails}
@@ -85,7 +86,7 @@ class CatalogTests(unittest.TestCase):
                 self.assertLessEqual(longitude, 25)
                 self.assertNotIn(source_id, source_ids)
                 source_ids.add(source_id)
-        self.assertGreater(total, 270_000)
+        self.assertGreater(total, 1_900_000)
 
     def test_daily_index_matches_manifest_totals_and_has_redlist_metadata(self):
         indexed_total = 0
@@ -94,7 +95,7 @@ class CatalogTests(unittest.TestCase):
             count = sum(value for _, value in daily)
             indexed_total += count
             self.assertEqual(count, trail["observationTotal"])
-        self.assertGreater(indexed_total, 270_000)
+        self.assertGreater(indexed_total, 1_900_000)
         categories = {taxon["redlistCategory"] for taxon in self.index["taxa"]}
         self.assertTrue({"CR", "EN", "VU", "NT"}.issubset(categories))
 

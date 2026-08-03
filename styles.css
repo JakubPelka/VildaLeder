@@ -398,6 +398,7 @@ label > span,
 .redlist-badge[data-category="unknown"] { background: #52606d; color: #fff; }
 
 .map-panel {
+  --observation-table-ratio: 25%;
   display: flex;
   height: calc(100vh - 7rem);
   min-width: 0;
@@ -409,7 +410,7 @@ label > span,
 
 .map-stage {
   position: relative;
-  min-height: 390px;
+  min-height: 240px;
   flex: 1 1 auto;
   overflow: hidden;
 }
@@ -417,7 +418,7 @@ label > span,
 #map {
   width: 100%;
   height: 100%;
-  min-height: 390px;
+  min-height: 240px;
   background: #dce8dd;
 }
 
@@ -611,6 +612,13 @@ label > span,
   font-size: 1.15rem;
 }
 
+.feature-name-tooltip .maplibregl-popup-content {
+  padding: 0.42rem 0.62rem;
+  font-weight: 750;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
 .popup-title {
   font-weight: 750;
 }
@@ -627,13 +635,55 @@ label > span,
   font-size: 0.73rem;
 }
 
+.map-table-resizer {
+  position: relative;
+  z-index: 5;
+  min-height: 0.8rem;
+  flex: 0 0 0.8rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #f5f7f5;
+  cursor: row-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.map-table-resizer::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3.5rem;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: #9aaca0;
+  content: "";
+  transform: translate(-50%, -50%);
+  transition: width 120ms ease, background 120ms ease;
+}
+
+.map-table-resizer:hover::after,
+.map-table-resizer:focus-visible::after,
+.map-panel.is-resizing .map-table-resizer::after {
+  width: 5rem;
+  background: var(--brand);
+}
+
+.map-table-resizer:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--brand) 35%, transparent);
+  outline-offset: -3px;
+}
+
+body.is-resizing-map-table {
+  cursor: row-resize;
+  user-select: none;
+}
+
 .observation-table-panel {
   display: flex;
-  min-height: 190px;
-  flex: 0 0 25%;
+  min-height: 160px;
+  flex: 0 0 var(--observation-table-ratio);
   flex-direction: column;
   padding: 1rem 1.1rem 1.25rem;
-  border-top: 1px solid var(--line);
   background: var(--panel);
   overflow: hidden;
 }
@@ -814,6 +864,10 @@ footer {
     min-height: 52vh;
     height: 52vh;
     flex-basis: auto;
+  }
+
+  .map-table-resizer {
+    display: none;
   }
 
   .observation-table-header {

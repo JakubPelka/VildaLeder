@@ -9,8 +9,9 @@ iOS and Android application, accounts, subscriptions, and paid features are
 possible later, after the public web MVP has demonstrated that the underlying
 data and ranking are useful.
 
-> Project status: functional Halland map/filter pilot with full Halmstad SOS
-> coverage plus experimental Halland-wide public Skandobs predator evidence.
+> Project status: functional Halland map/filter pilot with complete SOS snapshot
+> coverage for all 388 trails and nature reserves, plus experimental Halland-wide
+> public Skandobs predator evidence.
 > The web MVP runs locally and is
 > prepared for deployment at
 > [jakubpelka.github.io/VildaLeder](https://jakubpelka.github.io/VildaLeder/).
@@ -75,9 +76,10 @@ The current map catalog covers all six Halland municipalities: 175 named OSM
 from Naturvårdsregistret (388 selectable places in total). It deduplicates
 cross-municipality routes and retains
 every municipality membership for filtering. The checked-in observation
-snapshot still covers the 64 Halmstad trails while the Halland-wide PostGIS
-ingest is brought online; the UI labels other places as awaiting observation
-synchronisation rather than reporting a misleading zero. A separate
+snapshot contains all 388 Halland trails/reserves, backed by 1,300,530 canonical
+SOS observations and 1,907,193 observation-to-place matches. The UI still has an
+explicit pending state for future partial refreshes rather than reporting a
+misleading zero. A separate
 ten-year Skandobs snapshot currently adds 74 public wolf/lynx reports matched
 90 times to 55 Halland trails or reserves; these places are explicitly labelled
 as partial Skandobs-only coverage. Area and place-type
@@ -101,12 +103,20 @@ county/municipality filters; map selection; interactive Red List classes; and da
 from daily aggregates and therefore change with every selected date range.
 The custom search range is capped at the most recent ten years. Overlapping
 observation coordinates are clustered with their record count, and
-the paginated table below the map lists every currently visible observation;
+the paginated table below the map lists observations for the selected trail or
+reserve;
 selecting a row zooms to the record and opens its evidence popup. Custom date
 inputs are shown only after selecting the custom-period preset, and editing
 either date always activates that preset. The map's location control displays
 the user's browser-provided position and accuracy, then refreshes the marker
 every two seconds until tracking is stopped.
+Hovering a trail or reserve on the map shows its name. Clicking it selects the
+place and opens a compact source card with its municipality and size plus the
+OSM relation link for a trail or the Skyddad natur/Naturvårdsverket link for a
+reserve.
+On desktop, drag the separator between the map and table to choose how much room
+each view receives. Arrow keys resize it for keyboard users, double-click resets
+the default 75/25 split, and the preference is retained in the browser.
 
 ### Refresh the public data snapshot
 
@@ -117,22 +127,47 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-Provide the SOS subscription key through the environment and run the refresh:
+The production refresh is PostGIS-first. To run its complete Halland pipeline
+manually, provide the SOS key by file and let the script discover the database
+password from the local Docker container:
 
 ```bash
 SOS_SUBSCRIPTION_KEY_FILE=/absolute/path/to/specieskey.txt \
-  .venv/bin/python scripts/refresh_data.py --days 3650
+  scripts/server_refresh.sh
 ```
 
 `SOS_SUBSCRIPTION_KEY` can be used instead of a file. Neither form is written to
 `data/catalog.json`; `.env*`, `secrets/`, and raw responses are ignored by Git.
-The full job discovers named route relations in Halmstad through Overpass,
-reconstructs their geometry, creates a 200-metre buffer in SWEREF 99 TM, and
-pages through public SOS results. Date windows are recursively split before the
-SOS 10,000-result pagination edge, then deduplicated by occurrence ID. The job
-emits a geometry catalog, a daily aggregate search index, and compact route/time
-partitions. Use `--incremental` to replace only the current-month partitions and
-rebuild the aggregates; the scheduled workflow runs this mode every 24 hours.
+The job refreshes Halland trails and reserves, invalidates observation coverage
+when geometry changes, completes ten-year coverage for new places, reconciles a
+rolling 90-day correction window, refreshes Skandobs on a best-effort basis,
+verifies PostGIS, and atomically exports the full public snapshot. Date windows
+are recursively split before the SOS 10,000-result pagination edge and records
+are deduplicated by occurrence ID. Publication is refused if even one spatial
+feature is missing, the export is not exactly 3,650 days, a data file approaches
+GitHub's 100 MB limit, or the test suite fails.
+
+On the always-on server, install the checked-in user timer and put only local
+paths and non-secret tuning values in its ignored environment file:
+
+```bash
+mkdir -p ~/.config/vildaleder
+$EDITOR ~/.config/vildaleder/server-refresh.env
+chmod 600 ~/.config/vildaleder/server-refresh.env
+systemctl --user link "$PWD/deploy/systemd/vildaleder-refresh.service"
+systemctl --user link "$PWD/deploy/systemd/vildaleder-refresh.timer"
+systemctl --user daemon-reload
+systemctl --user enable --now vildaleder-refresh.timer
+```
+
+The environment file normally sets `SOS_SUBSCRIPTION_KEY_FILE`,
+`VILDA_REFRESH_PYTHON`, and `VILDA_DB_CONTAINER`. The timer runs at 03:00 in
+`Europe/Stockholm` and is persistent across downtime. Daily runs reconcile the
+last 90 days; day 1 of each month performs a forced ten-year reconciliation.
+The job works in a fresh clone, commits only a complete verified snapshot, and
+pushes `main`, which starts the GitHub Pages deployment. Open clients poll the
+deployed catalog every 15 minutes and reload only after the complete snapshot's
+generation marker changes.
 
 Refresh the Halland spatial catalog independently (no SOS credential required):
 
@@ -150,8 +185,8 @@ server, reuse the checked catalog without making upstream requests:
   --database-url "$DATABASE_URL"
 ```
 
-The daily workflow refreshes both the observation snapshot and this spatial
-catalog.
+The local server routine refreshes both the observation snapshot and this
+spatial catalog.
 
 Refresh the experimental public Skandobs snapshot after the feature catalog:
 
@@ -180,6 +215,20 @@ number of trails and nature reserves. Daily `taxon × feature × date`
 aggregates serve responsive period counts and rankings. Provider records remain
 separate so SOS/Artportalen and GBIF provenance can be retained and cross-source
 duplicates can later resolve to one canonical observation.
+
+The planned GBIF enrichment excludes GBIF's
+[complete Artportalen dataset](https://www.gbif.org/dataset/38b4c89f-584c-41bb-bd8f-cd1def33e92f)
+by its stable dataset key (`38b4c89f-584c-41bb-bd8f-cd1def33e92f`) before import. The
+remaining GBIF datasets add observations from other publishers. VildaLeder will
+retain `gbifID`, `datasetKey`, `occurrenceID`, `catalogNumber`, licence, and
+publisher; records are merged across providers only when a shared stable
+identifier proves that they represent the same observation. Similar species,
+date, and coordinates alone are not sufficient because distinct observations
+can legitimately occur together. Halland can be piloted through the public
+[Occurrence Search API](https://techdocs.gbif.org/en/openapi/v1/occurrence); a
+Sweden-wide backfill should use GBIF's authenticated
+[asynchronous download service](https://techdocs.gbif.org/en/data-use/api-downloads)
+because search paging is capped at 300 records and 100,000 results per query.
 
 For a local development database, copy `.env.example` to the ignored `.env`, set
 a local password, and run:
@@ -271,10 +320,11 @@ The initial GitHub Pages application is static, but not every data operation can
 run safely in a browser. The SLU developer portal issues an API key after product
 subscription; that key must not be embedded in frontend JavaScript. The pilot
 therefore uses a static JavaScript client and a Python data job which generates a
-versioned, cacheable JSON snapshot. A scheduled GitHub Actions job refreshes the
-public snapshot with a repository secret. The accepted national path is the
-implemented PostGIS schema plus an HTTPS API; static exports remain available
-during that transition.
+versioned, cacheable JSON snapshot. The always-on local server owns the 03:00
+refresh, verifies a complete export, and pushes it to GitHub Pages; GitHub
+Actions no longer performs a second partial data refresh. The accepted national
+path is the implemented PostGIS schema plus an HTTPS API; static exports remain
+available during that transition.
 
 GitHub Pages is suitable for an open prototype, but it is not the intended
 hosting platform for a future commercial SaaS or subscription backend.
@@ -294,8 +344,8 @@ hosting platform for a future commercial SaaS or subscription backend.
 - Scale target: PostgreSQL 18/PostGIS 3.6 with canonical observations,
   source-record provenance, native spatial matching, multilingual taxon names,
   and daily trail/reserve aggregates.
-- Automation: Python contract tests, CI, a daily SOS/OSM snapshot refresh using a
-  GitHub Actions secret, and a GitHub Pages workflow.
+- Automation: Python contract tests, CI, a persistent local systemd timer for the
+  complete PostGIS/SOS/OSM/Skandobs snapshot, and a GitHub Pages workflow.
 
 This deliberately low-complexity frontend proves the two core journeys.
 TypeScript, vector/PMTiles route delivery, a dedicated tile provider, and a

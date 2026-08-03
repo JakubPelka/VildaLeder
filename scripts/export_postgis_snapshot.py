@@ -10,7 +10,7 @@ import shutil
 import sys
 import tempfile
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -255,15 +255,17 @@ def export(args: argparse.Namespace) -> dict[str, int]:
         }
         if not database_features:
             raise RuntimeError("PostGIS contains no complete SOS feature coverage")
-        start = args.start_date or connection.execute(
-            """SELECT min(observed.observed_on)
-               FROM vildaleder.observation observed
-               JOIN vildaleder.observation_source_record record USING (observation_id)
-               JOIN vildaleder.data_source source USING (source_id)
-               WHERE source.source_key = 'sos' AND NOT record.is_deleted"""
+        has_sos_observations = connection.execute(
+            """SELECT EXISTS (
+                   SELECT 1
+                   FROM vildaleder.observation_source_record record
+                   JOIN vildaleder.data_source source USING (source_id)
+                   WHERE source.source_key = 'sos' AND NOT record.is_deleted
+               )"""
         ).fetchone()[0]
-        if not start:
+        if not has_sos_observations:
             raise RuntimeError("PostGIS contains no SOS observations")
+        start = args.start_date or args.end_date - timedelta(days=3_649)
 
         temporary_root = Path(tempfile.mkdtemp(prefix="vildaleder-observations-", dir=args.observations_dir.parent))
         exported = []
