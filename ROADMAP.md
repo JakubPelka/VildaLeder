@@ -1,0 +1,380 @@
+# VildaLeder roadmap
+
+This roadmap takes VildaLeder from a documented concept to an anonymous web MVP,
+then to a scalable Sweden-wide service and, only after validation, native mobile
+applications with optional paid features.
+
+The phases are ordered by dependency rather than by calendar date. A phase is
+complete only when its exit criteria are met.
+
+## Delivery principles
+
+- Start with a narrow geographic pilot and real data.
+- Prefer measurable baselines over opaque recommendation algorithms.
+- Keep trail, observation, taxonomy, and administrative-boundary sources behind
+  explicit adapters.
+- Never put upstream API secrets in browser or mobile bundles.
+- Cache expensive spatial results and retain provenance.
+- Treat sensitive species and licence compliance as launch blockers, not polish.
+- Build the anonymous web experience before accounts, subscriptions, or native
+  packaging.
+
+## Phase 0 — Feasibility and source contracts
+
+**Goal:** prove that marked trails, spatial buffers, recent observations,
+taxonomy, and conservation status can be joined legally and reproducibly.
+
+### Work
+
+- Select a representative pilot area; assess Hallands län as the default
+  candidate.
+- Extract `route=hiking` and `route=foot` relations from OSM for the pilot.
+- Measure route completeness:
+  - valid and connected geometries;
+  - missing names or references;
+  - duplicate/superroute relations;
+  - multilingual tags;
+  - route length and geometry size.
+- Compare trail acquisition strategies:
+  - Overpass for discovery and small refreshes;
+  - regional OSM extracts for deterministic batch processing;
+  - a hosted or self-managed route dataset if national refreshes outgrow public
+    Overpass capacity.
+- Obtain access to SLU’s “Species Observations – multiple data resources”
+  product and document API-key handling.
+- Build equivalent pilot queries against:
+  - SLU Species Observation System / Artportalen;
+  - GBIF Occurrence Search.
+- Confirm polygon, date, taxon, pagination, aggregation, and result-limit
+  behaviour with recorded fixtures.
+- Measure overlap, freshness, duplicate records, taxon identifiers, coordinate
+  precision, and source-specific fields.
+- Verify which API provides the current Swedish Red List 2025 assessment and how
+  its version is represented; do not silently fall back to the older 2020 list.
+- Validate Dyntaxa name search for scientific, Swedish, English, Polish, and
+  synonym coverage.
+- Evaluate SCB’s simplified `län`/`kommun` boundaries for UI filtering and select
+  an analysis-grade source if accurate spatial assignment is required.
+- Document licences, attribution, citation, caching, retention, and redistribution
+  obligations for every source and for derived corridor datasets.
+- Define a sensitive-species policy using only public, source-approved geometry.
+- Decide whether the 200-metre corridor is fixed, configurable, or adjusted by
+  source coordinate uncertainty.
+
+### Deliverables
+
+- `docs/discovery/data-source-evaluation.md`
+- `docs/contracts/trail-source.md`
+- `docs/contracts/observation-source.md`
+- `docs/contracts/taxonomy-and-red-list.md`
+- recorded API fixtures without credentials or protected data;
+- a small reproducible pilot dataset;
+- architecture decision records for data access, boundaries, basemap, and cache.
+
+### Exit criteria
+
+- At least 20 representative trails can be reconstructed and identified.
+- A 200-metre trail corridor returns reproducible observations for known test
+  cases.
+- Source records can be deduplicated without collapsing distinct observations.
+- Red List category and assessment year can be attached to returned taxa.
+- No secret or protected location is required by the public client.
+- The data and licensing model permits the intended public MVP.
+
+## Phase 1 — Web foundation and walking skeleton
+
+**Goal:** deploy the smallest end-to-end application to GitHub Pages.
+
+### Work
+
+- Select and record the frontend stack; the current candidate is React,
+  TypeScript, and Vite.
+- Create a responsive application shell with map, result drawer, loading, empty,
+  and error states.
+- Add MapLibre GL JS and select a basemap provider with suitable production
+  terms, attribution, capacity, and a migration path for mobile/offline use.
+- Establish source modules:
+  - `trails`;
+  - `observations`;
+  - `taxonomy`;
+  - `red-list`;
+  - `administrative-areas`.
+- Implement runtime validation for downloaded data contracts.
+- Add locales and locale tests for `en`, `sv`, and `pl`.
+- Add URL-addressable state for language, viewport, selected area, selected
+  trail/species, and time range.
+- Add accessibility foundations: keyboard navigation, focus management, colour
+  contrast, non-colour status cues, and screen-reader labels.
+- Add unit tests, formatting, linting, type checking, build verification, and a
+  GitHub Pages deployment workflow.
+- Publish source attribution and a visible data-version indicator.
+
+### Exit criteria
+
+- The application loads from its GitHub Pages project URL without console errors.
+- A sample trail can be selected on the map and from a list.
+- A fixture species list renders in all three languages.
+- Direct links restore the same selected view.
+- CI blocks a broken build, missing locale key, or invalid data contract.
+
+## Phase 2 — Trail-first pilot MVP
+
+**Goal:** answer “what has recently been observed along this trail?” with live or
+recently cached public data.
+
+### Work
+
+- Ingest and normalise pilot-area OSM route relations.
+- Generate and version 200-metre trail corridors in a metric projection.
+- Assign trails to `län` and `kommun`, including routes that cross boundaries.
+- Build map and list filters for administrative area, route network, and text.
+- Implement trail name/ref search and deterministic fallback labels.
+- Implement trail selection, fit-to-route, hover/focus synchronisation, and a
+  route detail panel.
+- Add time presets:
+  - rolling 24 hours;
+  - rolling 30 days;
+  - rolling 90 days;
+  - rolling 365 days;
+  - custom inclusive dates.
+- Query observations within the actual corridor polygon.
+- Aggregate by canonical taxon and show:
+  - common and scientific names;
+  - Red List category and assessment year;
+  - count and most recent observation;
+  - source and validation/precision information;
+  - links back to the authoritative source where possible.
+- Support sorting by Red List category, recency, count, and name.
+- Add explicit states for no observations, incomplete geometry, source outage,
+  partial results, and result truncation.
+- Cache by trail version, corridor width, source, filter set, time range, and data
+  version.
+
+### Exit criteria
+
+- All valid pilot trails can be opened from the map, list, and search.
+- Boundary cases prove that observations just inside/outside 200 metres are
+  classified correctly.
+- Date presets and custom dates produce testable inclusive ranges.
+- Duplicate source records do not inflate displayed counts.
+- Red List sorting is deterministic and explained in the UI.
+- The application does not reveal non-public locations.
+- A source outage degrades gracefully without breaking trail browsing.
+
+## Phase 3 — Species-first recommendations
+
+**Goal:** answer “which trails in this area have the strongest recent evidence
+for my chosen species?”
+
+### Work
+
+- Implement taxon autocomplete using stable IDs, accepted scientific names,
+  synonyms, and available vernacular names.
+- Make autocomplete accent-insensitive and show the scientific name beside every
+  vernacular match.
+- Add a curated, source-labelled alias layer for missing English and Polish names.
+- Filter candidates by Sweden, `län`, or `kommun` before spatial scoring.
+- Compute the transparent baseline per trail:
+  - deduplicated observation count;
+  - observations per kilometre;
+  - distinct observation dates;
+  - most recent observation;
+  - trail length and corridor area;
+  - coordinate/validation quality summaries.
+- Display the ranking inputs, not only the rank.
+- Add comparable result cards and select/zoom behaviour.
+- Add seasonal and reporting-effort warnings.
+- Test rankings with representative species, including havsörn and taxa with
+  sparse, common, sensitive, and multilingual records.
+
+### Exit criteria
+
+- A user can search by scientific or supported vernacular name.
+- The same taxon ID is selected regardless of which supported alias was typed.
+- Municipality/county filters alter the candidate route set predictably.
+- Ranking is deterministic for a frozen data fixture.
+- Each suggestion explains the observations supporting it.
+- The UI never states or implies that a high rank guarantees a sighting.
+
+## Phase 4 — Sweden-wide scale and data quality
+
+**Goal:** expand from the pilot without overwhelming browsers or upstream public
+services.
+
+### Work
+
+- Partition trails and derived data by stable geographic cells or administrative
+  areas.
+- Replace large GeoJSON payloads with vector tiles, PMTiles, or another measured
+  distribution format.
+- Incrementally refresh changed OSM relations instead of rebuilding everything.
+- Introduce scheduled observation aggregation with retry, backoff, source quotas,
+  and stale-cache serving.
+- Separate raw source cache, normalised observations, and user-facing aggregates.
+- Publish data manifests with build time, source versions, coverage, failures,
+  and checksums.
+- Add geometry QA for gaps, loops, reversed segments, duplicated members,
+  superroutes, and unrealistic lengths.
+- Add monitoring for API drift, route-count anomalies, empty partitions, stale
+  data, and red-list version changes.
+- Benchmark initial load, map interaction, trail selection, and species ranking on
+  mobile-class hardware.
+- Decide when GitHub-hosted artifacts are no longer appropriate and migrate data
+  delivery before hitting Pages/repository limits.
+
+### Exit criteria
+
+- Sweden-wide browsing stays within the agreed performance budget.
+- Refresh jobs resume safely after partial failure.
+- Every displayed aggregate links to a data manifest and provenance.
+- Upstream rate limiting cannot trigger an uncontrolled retry storm.
+- National data volume remains within documented hosting and cost budgets.
+
+## Phase 5 — Public web beta and PWA evaluation
+
+**Goal:** make the anonymous web experience reliable enough for real users.
+
+### Work
+
+- Conduct usability testing in English, Swedish, and Polish.
+- Add privacy, terms, data-source, attribution, correction, and contact pages.
+- Add a clear feedback flow for broken routes, mistranslations, and suspect data.
+- Add privacy-preserving product analytics only after an explicit decision and
+  documentation.
+- Evaluate installable PWA behaviour and limited offline access for product-owned
+  data.
+- Do not offer offline OSM standard tiles; choose a provider or self-hosted tile
+  path whose licence and policy explicitly permit offline use.
+- Add browser and device compatibility coverage.
+- Run security, dependency, accessibility, and performance reviews.
+- Define public uptime/freshness expectations and incident communication.
+
+### Exit criteria
+
+- Core journeys pass usability testing in all launch languages.
+- Legal attribution and sensitive-data review are complete.
+- Accessibility review finds no launch-blocking issue.
+- Error monitoring and data-freshness monitoring are operational.
+- The team has evidence that users return to either core journey.
+
+## Phase 6 — Mobile product discovery
+
+**Goal:** determine whether native apps add enough value to justify separate
+distribution, operations, and commercial complexity.
+
+### Questions to validate
+
+- Which features truly need native capabilities: background GPS, offline maps,
+  route progress, notifications, camera, or saved searches?
+- Can a PWA satisfy the useful subset first?
+- Which web domain modules can be shared safely with iOS and Android?
+- Does MapLibre Native or a React Native mapping stack meet performance and
+  offline requirements?
+- What data and map-provider licences permit offline packs and commercial use?
+- What remains free, and what could justify a subscription?
+- Are accounts necessary for sync, purchases, alerts, or saved lists?
+- How will Apple/Google in-app purchase rules, entitlement restoration, privacy,
+  and account deletion be handled?
+
+### Deliverables
+
+- mobile architecture spike on both iOS and Android;
+- offline-map and offline-observation proof of concept;
+- product/price research and free-versus-paid feature proposal;
+- backend, authentication, entitlement, privacy, and support cost model;
+- app-store compliance checklist.
+
+### Exit criteria
+
+- Native-specific value is demonstrated, not assumed.
+- A sustainable map/data licensing and cost model exists.
+- The account and subscription model has a documented privacy and support plan.
+- GitHub Pages has been removed from any commercial backend responsibility.
+
+## Phase 7 — Native apps and optional subscriptions
+
+**Goal:** release trustworthy iOS and Android products without weakening the open
+web experience.
+
+### Candidate free features
+
+- trail and species discovery;
+- current public observations;
+- basic filters and route details;
+- shareable links.
+
+### Candidate paid features to validate
+
+- offline regional maps and trail datasets;
+- saved trails/species with cross-device sync;
+- configurable observation alerts;
+- advanced historical comparisons and filters;
+- route collections or trip planning.
+
+Paid features are hypotheses, not commitments. Public-source data must not be
+misrepresented as proprietary, and subscription value must come from product
+functionality, reliability, convenience, and operations.
+
+### Exit criteria
+
+- App Store and Play Store production releases pass review.
+- Purchases, restoration, cancellation, and account deletion are tested.
+- Free web functionality remains available without forced registration.
+- Operational monitoring, support, backups, and incident response cover mobile
+  and backend services.
+
+## Cross-cutting backlog
+
+- Route surface, accessibility, elevation, difficulty, and public-transport
+  access.
+- Seasonal closures, local restrictions, weather, fire risk, and hunting notices.
+- Observation photos where source licences permit display.
+- Saved searches and notifications.
+- Compare multiple trails.
+- Shareable trip cards.
+- Community route-quality feedback without editing OSM implicitly.
+- Additional interface languages and vernacular-name sources.
+- Transparent personalisation that does not hide the baseline ranking.
+
+## Explicitly out of scope for the first MVP
+
+- User accounts and social features.
+- Reporting observations back to Artportalen/GBIF.
+- Navigation or safety-critical turn-by-turn routing.
+- Guaranteed sightings or habitat-suitability predictions.
+- Revealing protected or obscured species locations.
+- Commercial subscriptions.
+- Native iOS/Android binaries.
+- Nationwide offline basemap downloads.
+
+## Principal risks
+
+| Risk | Early mitigation |
+|---|---|
+| OSM route relations are incomplete or fragmented | Pilot QA, source-version tracking, deterministic exclusion reasons |
+| Public Overpass instances do not scale nationally | Regional extracts, incremental ingest, caching, controlled refresh jobs |
+| SLU API key cannot be exposed on GitHub Pages | GitHub Actions secret or backend proxy; never ship it to the client |
+| GBIF and SOS overlap or disagree | Preserve source IDs, deduplicate conservatively, display provenance |
+| Observation counts mostly measure observer effort | Show raw inputs, per-km and distinct-date context, avoid probability claims |
+| Sensitive observations could attract disturbance | Use public/source-approved geometry only; suppress or generalise presentation when required |
+| Red List versions or taxon concepts change | Store assessment year and source taxon ID; version mappings and invalidate caches |
+| Multilingual common-name coverage is incomplete | Scientific-name fallback and curated, source-labelled alias catalogue |
+| Static hosting/data limits are exceeded | Geographic partitioning, compact formats, measured budgets, planned hosting migration |
+| Future monetisation conflicts with hosting or data terms | Legal/licensing gate before mobile subscriptions; move commercial services off Pages |
+
+## Definition of the web MVP
+
+The web MVP is complete when an anonymous user can, in English, Swedish, or
+Polish:
+
+1. select a Swedish pilot municipality or county;
+2. browse and search marked OSM trails;
+3. open a trail and see observations within its versioned 200-metre corridor for
+   a selected time range;
+4. sort species by Red List category, recency, count, or name;
+5. search a species by scientific or supported vernacular name;
+6. receive explainable trail suggestions for that species;
+7. see source, date, data quality, coverage, and attribution information;
+8. use a shareable URL without creating an account;
+9. encounter no protected coordinates, embedded secrets, or misleading sighting
+   guarantees.
