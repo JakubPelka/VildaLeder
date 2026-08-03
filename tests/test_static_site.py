@@ -186,16 +186,16 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("matchesFeatureKind", core)
         self.assertIn("pendingUserLocation", map_source)
 
-    def test_place_type_is_restored_and_area_fit_keeps_geographic_context(self):
+    def test_place_type_is_restored_without_changing_the_map_view(self):
         app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
-        map_source = (ROOT / "src" / "map.js").read_text(encoding="utf-8")
         self.assertIn('FEATURE_KIND_PREFERENCE_KEY = "vildaleder-feature-kind"', app)
         self.assertIn("initialiseFeatureKindControl()", app)
         self.assertIn("localStorage.setItem(FEATURE_KIND_PREFERENCE_KEY", app)
         self.assertIn("localStorage.removeItem(FEATURE_KIND_PREFERENCE_KEY)", app)
-        self.assertIn("currentMapExtentPlaces", app)
-        self.assertIn('featureKind: "all"', app)
-        self.assertIn("{ padding: 30, maxZoom: 10 }", map_source)
+        feature_kind_handler = app.split(
+            'elements.featureKind.addEventListener("change"', 1
+        )[1].split('elements.county.addEventListener("change"', 1)[0]
+        self.assertNotIn("fitCurrentAreaAfterRender", feature_kind_handler)
 
     def test_refresh_is_owned_by_the_local_server_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(

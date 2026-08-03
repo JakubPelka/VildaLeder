@@ -13,8 +13,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260803-map-state-v14";
-import { translations, translator } from "./i18n.js?v=20260803-map-state-v14";
+} from "./core.js?v=20260803-map-state-v15";
+import { translations, translator } from "./i18n.js?v=20260803-map-state-v15";
 import {
   clearUserLocation,
   fitAllTrails,
@@ -26,7 +26,7 @@ import {
   setUserLocation,
   showFeaturePopup,
   showObservationPopup,
-} from "./map.js?v=20260803-map-state-v14";
+} from "./map.js?v=20260803-map-state-v15";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -1700,7 +1700,6 @@ function bindEvents() {
       localStorage.removeItem(FEATURE_KIND_PREFERENCE_KEY);
     }
     renderAll();
-    fitCurrentAreaAfterRender();
     void loadPlaceRankingsForSelection().catch((error) => {
       console.error("Place rankings could not be loaded", error);
     });
