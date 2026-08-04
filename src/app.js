@@ -118,6 +118,7 @@ const elements = {
   previousStepButtons: [...document.querySelectorAll("[data-previous-step]")],
   showResults: document.querySelector("#show-results"),
   backToCriteria: document.querySelector("#back-to-criteria"),
+  newSearch: document.querySelector("#new-search"),
   openTutorial: document.querySelector("#open-tutorial"),
   status: document.querySelector("#status"),
   locateUser: document.querySelector("#locate-user"),
@@ -446,7 +447,7 @@ function showSearchCriteria() {
   state.searchView = "criteria";
   elements.resultsView.hidden = true;
   elements.criteriaView.hidden = false;
-  setCriteriaStep(1);
+  setCriteriaStep(3);
 }
 
 function populateAreaFilters() {
@@ -1944,6 +1945,13 @@ function bindEvents() {
   });
   elements.showResults.addEventListener("click", () => showSearchResults());
   elements.backToCriteria.addEventListener("click", showSearchCriteria);
+  if (elements.newSearch) {
+    elements.newSearch.addEventListener("click", () => {
+      resetFilters();
+      showSearchCriteria();
+      setCriteriaStep(1);
+    });
+  }
   elements.openTutorial.addEventListener("click", () => showWelcomeDialog({ force: true }));
   elements.language.addEventListener("change", () => {
     state.language = elements.language.value;
@@ -1953,6 +1961,11 @@ function bindEvents() {
   });
   elements.locateUser.addEventListener("click", toggleLocationTracking);
   elements.localitySearchForm.addEventListener("submit", searchLocality);
+  elements.speciesSearch.addEventListener("focus", () => {
+    setTimeout(() => {
+      elements.speciesSearch.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 250);
+  });
   elements.resetFilters.addEventListener("click", resetFilters);
   elements.observationSortButtons.forEach((button) =>
     button.addEventListener("click", () => sortObservationTable(button.dataset.sort)),

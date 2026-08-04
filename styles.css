@@ -1507,10 +1507,17 @@ footer {
     inset: 0;
   }
 
-  .map-stage,
+  .map-stage {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+    flex-basis: auto;
+  }
+  
   #map {
     min-height: 0;
-    height: auto;
+    height: 100%;
     flex: 1;
     flex-basis: auto;
   }
