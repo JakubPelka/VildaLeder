@@ -1659,3 +1659,10 @@ footer {
 .species-sort-controls button:hover {
   background-color: var(--border-color);
 }
+
+.slogan {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 0.1rem;
+}

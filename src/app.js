@@ -14,8 +14,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-map-menu-v23";
-import { translations, translator } from "./i18n.js?v=20260804-map-menu-v23";
+} from "./core.js?v=20260804-map-menu-v24";
+import { translations, translator } from "./i18n.js?v=20260804-map-menu-v24";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -32,7 +32,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-map-menu-v23";
+} from "./map.js?v=20260804-map-menu-v24";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;

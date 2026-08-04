@@ -297,7 +297,8 @@ export function rankTrailsForSpecies(trails, species, range, searchIndex, sortOp
 }
 
 export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchIndex, sortOptions = { by: "days", dir: "desc" }) {
-  if (!speciesList || speciesList.length === 0) return   if (speciesList.length === 1) {
+  if (!speciesList || speciesList.length === 0) return [];
+  if (speciesList.length === 1) {
     const single = rankTrailsForSpecies(trails, speciesList[0], range, searchIndex, sortOptions);
     return single.map(r => ({
       trail: r.trail,
@@ -379,5 +380,5 @@ export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchI
       (getSortValue(right, sortOptions.by) - getSortValue(left, sortOptions.by)) * sortDirection ||
       right.lastSeen.localeCompare(left.lastSeen) ||
       left.trail.name.localeCompare(right.trail.name)
-    );  );
+    );
 }
