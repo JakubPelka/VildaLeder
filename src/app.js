@@ -13,8 +13,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-search-wizard-v17";
-import { translations, translator } from "./i18n.js?v=20260804-search-wizard-v17";
+} from "./core.js?v=20260804-search-wizard-v18";
+import { translations, translator } from "./i18n.js?v=20260804-search-wizard-v18";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -28,7 +28,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-search-wizard-v17";
+} from "./map.js?v=20260804-search-wizard-v18";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -40,20 +40,11 @@ const MIN_TABLE_HEIGHT = 160;
 const PERIOD_PREFERENCE_KEY = "vildaleder-period";
 const CUSTOM_START_PREFERENCE_KEY = "vildaleder-custom-start";
 const CUSTOM_END_PREFERENCE_KEY = "vildaleder-custom-end";
-const FEATURE_KIND_PREFERENCE_KEY = "vildaleder-feature-kind";
 const PLACE_SEARCH_CACHE_PREFIX = "vildaleder-place-search:";
 const PLACE_SEARCH_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1_000;
 const PLACE_SEARCH_MIN_INTERVAL_MS = 1_100;
 const GEOCODER_ENDPOINT = "https://nominatim.openstreetmap.org/search";
 const PERIOD_VALUES = new Set(["day", "month", "quarter", "year", "custom"]);
-const FEATURE_KIND_VALUES = new Set([
-  "",
-  "trail",
-  "reserve",
-  "national_park",
-  "observation_infrastructure",
-  "all",
-]);
 const WELCOME_COOKIE = "vildaleder_welcome_dismissed";
 const WELCOME_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 const FEATURE_KIND_TRANSLATIONS = Object.freeze({
@@ -340,10 +331,9 @@ function applyLanguage() {
   });
   elements.mapTableResizer.setAttribute("aria-label", t("resizeMapTable"));
   elements.welcomeClose.setAttribute("aria-label", t("welcomeClose"));
-  elements.menuToggle.setAttribute("aria-label", t("openSearchMenu"));
-  elements.menuToggle.setAttribute("title", t("openSearchMenu"));
   elements.sidebarClose.setAttribute("aria-label", t("closeSearchMenu"));
   elements.sidebarScrim.setAttribute("aria-label", t("closeSearchMenu"));
+  syncSidebarState();
   updateLocationButton();
   if (state.catalog) renderAll();
 }
@@ -375,10 +365,34 @@ function showWelcomeDialog({ force = false } = {}) {
   window.requestAnimationFrame(() => elements.welcomeClose.focus());
 }
 
-function setSidebarOpen(open) {
-  document.body.classList.toggle("sidebar-is-open", open);
+function mobileSidebar() {
+  return window.matchMedia("(max-width: 800px)").matches;
+}
+
+function sidebarIsOpen() {
+  return mobileSidebar()
+    ? document.body.classList.contains("sidebar-is-open")
+    : !document.body.classList.contains("sidebar-is-collapsed");
+}
+
+function syncSidebarState() {
+  const open = sidebarIsOpen();
+  const label = t(open ? "closeSearchMenu" : "openSearchMenu");
   elements.menuToggle.setAttribute("aria-expanded", String(open));
-  elements.sidebarScrim.hidden = !open;
+  elements.menuToggle.setAttribute("aria-label", label);
+  elements.menuToggle.setAttribute("title", label);
+  const menuLabel = elements.menuToggle.querySelector(".sr-only");
+  if (menuLabel) menuLabel.textContent = label;
+  elements.sidebarScrim.hidden = !mobileSidebar() || !open;
+}
+
+function setSidebarOpen(open) {
+  if (mobileSidebar()) {
+    document.body.classList.toggle("sidebar-is-open", open);
+  } else {
+    document.body.classList.toggle("sidebar-is-collapsed", !open);
+  }
+  syncSidebarState();
   if (open) {
     window.requestAnimationFrame(() => elements.sidebar.focus({ preventScroll: true }));
   }
@@ -408,7 +422,7 @@ function setCriteriaStep(step) {
 
 function validateLocationCriteria() {
   if (state.featureKind) return true;
-  setCriteriaStep(2);
+  setCriteriaStep(3);
   elements.criteriaValidation.textContent = t("choosePlaceTypeToContinue");
   elements.criteriaValidation.hidden = false;
   window.requestAnimationFrame(() => elements.featureKind.focus());
@@ -1758,7 +1772,6 @@ function resetFilters() {
   elements.localitySearchSubmit.disabled = !state.appReady;
   setPlaceSearchStatus();
   clearSearchedPlace();
-  localStorage.removeItem(FEATURE_KIND_PREFERENCE_KEY);
   elements.period.value = "year";
   elements.customDates.hidden = true;
   elements.dateFrom.value = state.customStart;
@@ -1773,9 +1786,8 @@ function resetFilters() {
 }
 
 function initialiseFeatureKindControl() {
-  const savedFeatureKind = localStorage.getItem(FEATURE_KIND_PREFERENCE_KEY);
-  state.featureKind = FEATURE_KIND_VALUES.has(savedFeatureKind) ? savedFeatureKind : "";
-  elements.featureKind.value = state.featureKind;
+  state.featureKind = "";
+  elements.featureKind.value = "";
 }
 
 function activateCustomPeriod() {
@@ -1910,15 +1922,14 @@ function bindEvents() {
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (!elements.welcomeDialog.hidden) closeWelcomeDialog();
-    else if (document.body.classList.contains("sidebar-is-open")) setSidebarOpen(false);
+    else if (sidebarIsOpen()) setSidebarOpen(false);
   });
-  elements.menuToggle.addEventListener("click", () => setSidebarOpen(true));
+  elements.menuToggle.addEventListener("click", () => setSidebarOpen(!sidebarIsOpen()));
   elements.sidebarClose.addEventListener("click", () => setSidebarOpen(false));
   elements.sidebarScrim.addEventListener("click", () => setSidebarOpen(false));
   elements.nextStepButtons.forEach((button) =>
     button.addEventListener("click", () => {
       const step = Number(button.dataset.nextStep);
-      if (step === 3 && !validateLocationCriteria()) return;
       setCriteriaStep(step);
     }),
   );
@@ -1943,11 +1954,6 @@ function bindEvents() {
   elements.featureKind.addEventListener("change", () => {
     state.featureKind = elements.featureKind.value;
     if (state.featureKind) clearCriteriaValidation();
-    if (state.featureKind) {
-      localStorage.setItem(FEATURE_KIND_PREFERENCE_KEY, state.featureKind);
-    } else {
-      localStorage.removeItem(FEATURE_KIND_PREFERENCE_KEY);
-    }
     renderAll();
     void loadPlaceRankingsForSelection().catch((error) => {
       console.error("Place rankings could not be loaded", error);
@@ -1992,6 +1998,7 @@ function bindEvents() {
       void renderTrailDetails();
     }, 140);
   });
+  window.addEventListener("resize", syncSidebarState);
 }
 
 async function loadJson(path, label) {
@@ -2077,7 +2084,10 @@ async function start() {
   showWelcomeDialog();
   setupMapTableResizer();
   window.addEventListener("pageshow", () => {
-    requestAnimationFrame(() => syncPeriodControlsFromDom());
+    requestAnimationFrame(() => {
+      initialiseFeatureKindControl();
+      syncPeriodControlsFromDom();
+    });
   });
   try {
     const [observationCatalog, featureCatalog, searchIndex, skandobs] = await Promise.all([

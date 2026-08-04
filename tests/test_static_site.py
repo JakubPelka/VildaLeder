@@ -186,12 +186,16 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("matchesFeatureKind", core)
         self.assertIn("pendingUserLocation", map_source)
 
-    def test_place_type_is_restored_without_changing_the_map_view(self):
+    def test_place_type_starts_empty_after_reload_without_changing_map_view_on_selection(self):
         app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
-        self.assertIn('FEATURE_KIND_PREFERENCE_KEY = "vildaleder-feature-kind"', app)
         self.assertIn("initialiseFeatureKindControl()", app)
-        self.assertIn("localStorage.setItem(FEATURE_KIND_PREFERENCE_KEY", app)
-        self.assertIn("localStorage.removeItem(FEATURE_KIND_PREFERENCE_KEY)", app)
+        self.assertIn('state.featureKind = "";\n  elements.featureKind.value = "";', app)
+        self.assertNotIn("FEATURE_KIND_PREFERENCE_KEY", app)
+        self.assertNotIn("vildaleder-feature-kind", app)
+        pageshow_handler = app.split('window.addEventListener("pageshow"', 1)[1].split(
+            "try {", 1
+        )[0]
+        self.assertIn("initialiseFeatureKindControl()", pageshow_handler)
         feature_kind_handler = app.split(
             'elements.featureKind.addEventListener("change"', 1
         )[1].split('elements.county.addEventListener("change"', 1)[0]
@@ -236,6 +240,16 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn('id="search-sidebar"', html)
         self.assertIn('id="sidebar-scrim"', html)
         self.assertEqual(html.count("data-criteria-step="), 3)
+        step_two = html.split('data-criteria-step="2"', 1)[1].split(
+            'data-criteria-step="3"', 1
+        )[0]
+        step_three = html.split('data-criteria-step="3"', 1)[1].split(
+            'id="open-tutorial"', 1
+        )[0]
+        self.assertIn('id="period-heading"', step_two)
+        self.assertNotIn('id="area-heading"', step_two)
+        self.assertIn('id="area-heading"', step_three)
+        self.assertIn('id="show-results"', step_three)
         self.assertIn('id="criteria-view"', html)
         self.assertIn('id="results-view" class="results-view" hidden', html)
         self.assertIn('id="show-results"', html)
@@ -247,6 +261,9 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("function showSearchCriteria()", app)
         self.assertIn('showWelcomeDialog({ force: true })', app)
         self.assertIn('document.body.classList.toggle("sidebar-is-open", open)', app)
+        self.assertIn('document.body.classList.toggle("sidebar-is-collapsed", !open)', app)
+        self.assertIn('setSidebarOpen(!sidebarIsOpen())', app)
+        self.assertIn('body.sidebar-is-collapsed .app-shell', styles)
         self.assertIn("transform: translateX(-105%)", styles)
         self.assertGreaterEqual(translations.count("choosePlaceTypeToContinue"), 3)
         self.assertNotIn('class="mode-tabs"', html)

@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260804-search-wizard-v17">
+    <link rel="stylesheet" href="styles.css?v=20260804-search-wizard-v18">
   </head>
   <body>
     <section
@@ -94,10 +94,10 @@
               <span>1</span><strong data-i18n="selectSpeciesStep">Species</strong>
             </li>
             <li data-criteria-progress="2">
-              <span>2</span><strong data-i18n="selectLocationStep">Location</strong>
+              <span>2</span><strong data-i18n="selectPeriodStep">Period</strong>
             </li>
             <li data-criteria-progress="3">
-              <span>3</span><strong data-i18n="selectPeriodStep">Period</strong>
+              <span>3</span><strong data-i18n="selectLocationStep">Location</strong>
             </li>
           </ol>
           <p id="criteria-validation" class="criteria-validation" role="alert" hidden></p>
@@ -126,8 +126,42 @@
             </div>
           </section>
 
-          <section class="wizard-step" data-criteria-step="2" aria-labelledby="area-heading" hidden>
+          <section class="wizard-step" data-criteria-step="2" aria-labelledby="period-heading" hidden>
             <p class="step-count" data-i18n="stepTwoOfThree">Step 2 of 3</p>
+            <h2 id="period-heading" data-i18n="selectSearchPeriod">Select search period</h2>
+            <label>
+              <span class="sr-only" data-i18n="period">Observation period</span>
+              <select id="period">
+                <option value="day" data-i18n="oneDay">Latest day</option>
+                <option value="month" data-i18n="oneMonth">Last 30 days</option>
+                <option value="quarter" data-i18n="oneQuarter">Last 90 days</option>
+                <option value="year" data-i18n="oneYear" selected>Last 365 days</option>
+                <option value="custom" data-i18n="custom">Custom dates</option>
+              </select>
+            </label>
+            <div id="custom-dates" class="two-columns custom-dates" hidden>
+              <label>
+                <span data-i18n="from">From</span>
+                <input id="date-from" type="date">
+              </label>
+              <label>
+                <span data-i18n="to">To</span>
+                <input id="date-to" type="date">
+              </label>
+            </div>
+            <p class="help-text" data-i18n="maximumRangeNote">The maximum observation search range is the last 10 years.</p>
+            <p id="snapshot-note" class="help-text"></p>
+            <p class="data-caveat" data-i18n="sensitiveSpeciesNote">
+              Some sensitive species are withheld or shown with generalized locations by source databases. Missing public points do not prove that a species is absent.
+            </p>
+            <div class="wizard-actions">
+              <button class="wizard-secondary" type="button" data-previous-step="1" data-i18n="previousStep">Back</button>
+              <button class="wizard-primary" type="button" data-next-step="3" data-i18n="nextStep">Next</button>
+            </div>
+          </section>
+
+          <section class="wizard-step" data-criteria-step="3" aria-labelledby="area-heading" hidden>
+            <p class="step-count" data-i18n="stepThreeOfThree">Step 3 of 3</p>
             <h2 id="area-heading" data-i18n="selectLocationAndType">Select location and place type</h2>
             <form id="locality-search-form" class="locality-search" role="search">
               <label class="search-label" for="locality-search" data-i18n="findLocality">Find a place on the map</label>
@@ -174,40 +208,6 @@
             </div>
             <p class="data-caveat" data-i18n="trailCoverageNote">
               Trail coverage combines OpenStreetMap and Naturvårdsverket data and may be incomplete or outdated.
-            </p>
-            <div class="wizard-actions">
-              <button class="wizard-secondary" type="button" data-previous-step="1" data-i18n="previousStep">Back</button>
-              <button class="wizard-primary" type="button" data-next-step="3" data-i18n="nextStep">Next</button>
-            </div>
-          </section>
-
-          <section class="wizard-step" data-criteria-step="3" aria-labelledby="period-heading" hidden>
-            <p class="step-count" data-i18n="stepThreeOfThree">Step 3 of 3</p>
-            <h2 id="period-heading" data-i18n="selectSearchPeriod">Select search period</h2>
-            <label>
-              <span class="sr-only" data-i18n="period">Observation period</span>
-              <select id="period">
-                <option value="day" data-i18n="oneDay">Latest day</option>
-                <option value="month" data-i18n="oneMonth">Last 30 days</option>
-                <option value="quarter" data-i18n="oneQuarter">Last 90 days</option>
-                <option value="year" data-i18n="oneYear" selected>Last 365 days</option>
-                <option value="custom" data-i18n="custom">Custom dates</option>
-              </select>
-            </label>
-            <div id="custom-dates" class="two-columns custom-dates" hidden>
-              <label>
-                <span data-i18n="from">From</span>
-                <input id="date-from" type="date">
-              </label>
-              <label>
-                <span data-i18n="to">To</span>
-                <input id="date-to" type="date">
-              </label>
-            </div>
-            <p class="help-text" data-i18n="maximumRangeNote">The maximum observation search range is the last 10 years.</p>
-            <p id="snapshot-note" class="help-text"></p>
-            <p class="data-caveat" data-i18n="sensitiveSpeciesNote">
-              Some sensitive species are withheld or shown with generalized locations by source databases. Missing public points do not prove that a species is absent.
             </p>
             <button id="reset-filters" class="reset-filters" type="button" data-i18n="resetFilters">Reset filters and selection</button>
             <div class="wizard-actions">
@@ -354,6 +354,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260804-search-wizard-v17"></script>
+    <script type="module" src="src/app.js?v=20260804-search-wizard-v18"></script>
   </body>
 </html>
