@@ -156,9 +156,9 @@ function addDataLayers() {
     source: SOURCE_CORRIDORS,
     filter: ["==", ["get", "visible"], true],
     paint: {
-      "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#176b48"],
-      "line-width": ["case", ["==", ["get", "selected"], true], 1.8, ["boolean", ["feature-state", "hover"], false], 1.5, 1],
-      "line-opacity": ["case", ["==", ["get", "visible"], false], 0.05, 0.35],
+      "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#ff8c00", "#176b48"],
+      "line-width": ["case", ["==", ["get", "selected"], true], 3, ["boolean", ["feature-state", "hover"], false], 2.5, 1],
+      "line-opacity": ["case", ["==", ["get", "visible"], false], 0.05, ["boolean", ["feature-state", "hover"], false], 0.6, 0.35],
     },
   });
   map.addLayer({
@@ -171,15 +171,15 @@ function addDataLayers() {
       ["==", ["get", "visible"], true],
     ],
     paint: {
-      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#2f855a"],
+      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#ff8c00", "#2f855a"],
       "fill-opacity": [
         "case",
         ["==", ["get", "visible"], false],
         0.01,
         ["==", ["get", "selected"], true],
-        0.32,
+        0.45,
         ["boolean", ["feature-state", "hover"], false],
-        0.25,
+        0.40,
         0.18,
       ],
     },
@@ -194,8 +194,8 @@ function addDataLayers() {
       ["==", ["get", "visible"], true],
     ],
     paint: {
-      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#287552"],
-      "fill-opacity": ["case", ["==", ["get", "selected"], true], 0.38, ["boolean", ["feature-state", "hover"], false], 0.30, 0.24],
+      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#ff8c00", "#287552"],
+      "fill-opacity": ["case", ["==", ["get", "selected"], true], 0.5, ["boolean", ["feature-state", "hover"], false], 0.45, 0.24],
     },
   });
   map.addLayer({
@@ -209,13 +209,15 @@ function addDataLayers() {
     ],
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
-      "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#176b48"],
-      "line-width": ["case", ["==", ["get", "selected"], true], 7, ["boolean", ["feature-state", "hover"], false], 5.5, 4],
+      "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#ff8c00", "#176b48"],
+      "line-width": ["case", ["==", ["get", "selected"], true], 8.5, ["boolean", ["feature-state", "hover"], false], 7.5, 4],
       "line-opacity": [
         "case",
         ["==", ["get", "visible"], false],
         0.1,
         ["==", ["get", "selected"], true],
+        1,
+        ["boolean", ["feature-state", "hover"], false],
         1,
         0.82,
       ],
@@ -242,9 +244,9 @@ function addDataLayers() {
         "observation_tower", "#176b8c",
         "#ad6b19",
       ],
-      "circle-radius": ["case", ["==", ["get", "selected"], true], 9, ["boolean", ["feature-state", "hover"], false], 7.5, 6],
-      "circle-stroke-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#ffffff"],
-      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 3, ["boolean", ["feature-state", "hover"], false], 3, 2],
+      "circle-radius": ["case", ["==", ["get", "selected"], true], 10, ["boolean", ["feature-state", "hover"], false], 9, 6],
+      "circle-stroke-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#ff8c00", "#ffffff"],
+      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 3.5, ["boolean", ["feature-state", "hover"], false], 3, 2],
     },
   });
   map.addLayer({
