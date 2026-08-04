@@ -88,8 +88,10 @@ NVR_WORKERS = 6
 NVL_WALKING_TYPES = ("Vandringsled", "Naturstig", "Omarkerad stig", "Elljusspår")
 NVL_DESTINATION_TYPES = {
     "Fågeltorn": "observation_tower",
+    "Utsiktstorn": "observation_tower",
     "Gömsle": "bird_hide",
     "Observationsplattform": "observation_site",
+    "Utsikt": "observation_site",
 }
 OVERPASS_URLS = tuple(
     dict.fromkeys(
@@ -226,6 +228,64 @@ def fetch_routes(county: str, municipalities: dict[str, str]) -> list[dict[str, 
 
 def fetch_halland_routes() -> list[dict[str, Any]]:
     return fetch_routes(COUNTY, MUNICIPALITIES)
+
+
+def overpass_destinations_query(municipality_code: str) -> str:
+    return (
+        "[out:json][timeout:180];"
+        f'area["boundary"="administrative"]["ref:scb"="{municipality_code}"]->.searchArea;'
+        '('
+        'node(area.searchArea)["leisure"="bird_hide"];'
+        'node(area.searchArea)["man_made"="tower"]["tower:type"="observation"];'
+        'node(area.searchArea)["tourism"="viewpoint"];'
+        ');'
+        "out body geom;"
+    )
+
+def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[dict[str, Any]]:
+    features = []
+    to_sweref = Transformer.from_crs("EPSG:4326", "EPSG:3006", always_xy=True).transform
+    to_wgs84 = Transformer.from_crs("EPSG:3006", "EPSG:4326", always_xy=True).transform
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {}
+        for code, name in municipalities.items():
+            futures[executor.submit(
+                request_json,
+                new_session(), "POST", OVERPASS_URLS[0], attempts=3,
+                data={"data": overpass_destinations_query(code)}, timeout=180
+            )] = name
+        for future in as_completed(futures):
+            municipality = futures[future]
+            try:
+                result = future.result()
+                nodes = [item for item in result.get("elements", []) if item.get("type") == "node"]
+                for node in nodes:
+                    tags = node.get("tags", {})
+                    if tags.get("leisure") == "bird_hide":
+                        feature_kind = "bird_hide"
+                    elif tags.get("tourism") == "viewpoint":
+                        feature_kind = "observation_site"
+                    else:
+                        feature_kind = "observation_tower"
+                    node_id = node["id"]
+                    point = Point(node["lon"], node["lat"])
+                    analysis = transform(to_wgs84, transform(to_sweref, point).buffer(BUFFER_METERS))
+                    features.append({
+                        "id": f"osm-node-{node_id}",
+                        "featureKind": feature_kind,
+                        "source": "osm",
+                        "sourceFeatureId": str(node_id),
+                        "name": tags.get("name") or f"OSM {feature_kind.replace('_', ' ')} {node_id}",
+                        "county": county,
+                        "municipalities": [municipality],
+                        "municipality": municipality,
+                        "sourceUrl": f"https://www.openstreetmap.org/node/{node_id}",
+                        "geometry": mapping(point),
+                        "analysisGeometry": mapping(analysis),
+                    })
+            except Exception as exc:
+                print(f"Failed OSM destinations in {municipality}: {exc}", file=sys.stderr)
+    return features
 
 
 def nvl_county_label(county: str) -> str:
@@ -761,6 +821,23 @@ def build_catalog(
     }
 
 
+def deduplicate_features(primary: list[dict[str, Any]], secondary: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # primary is kept, secondary is dropped if it intersects a primary feature significantly.
+    kept = list(primary)
+    primary_shapes = [shape(p["analysisGeometry"]) for p in primary]
+    for sec in secondary:
+        sec_shape = shape(sec["analysisGeometry"])
+        is_duplicate = False
+        for pri_shape in primary_shapes:
+            if sec_shape.intersects(pri_shape):
+                intersection = sec_shape.intersection(pri_shape)
+                if intersection.area / min(sec_shape.area, pri_shape.area) > 0.5:
+                    is_duplicate = True
+                    break
+        if not is_duplicate:
+            kept.append(sec)
+    return kept
+
 def main() -> int:
     args = parse_args()
     try:
@@ -770,12 +847,20 @@ def main() -> int:
             trails = [feature for feature in features if feature["featureKind"] == "trail"]
             reserves = [feature for feature in features if feature["featureKind"] == "reserve"]
         else:
-            trails = [*fetch_halland_routes(), *fetch_nvl_trails(COUNTY)]
+            osm_routes = fetch_halland_routes()
+            nvv_routes = fetch_nvl_trails(COUNTY)
             if args.trail_limit:
-                trails = trails[: args.trail_limit]
+                osm_routes = osm_routes[: args.trail_limit]
+                nvv_routes = nvv_routes[: args.trail_limit]
+            trails = deduplicate_features(nvv_routes, osm_routes)
+            
             reserves = fetch_halland_reserves(args.reserve_limit)
             national_parks = fetch_national_parks(COUNTY, "N")
-            destinations = fetch_nvl_destinations(COUNTY)
+            
+            osm_dests = fetch_osm_destinations(COUNTY, MUNICIPALITIES)
+            nvv_dests = fetch_nvl_destinations(COUNTY)
+            destinations = deduplicate_features(nvv_dests, osm_dests)
+            
             features = sorted(
                 [*trails, *reserves, *national_parks, *destinations],
                 key=lambda item: (item["featureKind"], item["name"].casefold(), item["id"]),

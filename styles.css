@@ -215,7 +215,7 @@ a {
   position: absolute;
   z-index: 4;
   top: 0.65rem;
-  left: 3.4rem;
+  left: 0.65rem;
   display: grid;
   width: 2.25rem;
   height: 2.25rem;
@@ -247,6 +247,12 @@ a {
   font-size: 1.7rem;
   place-items: center;
 }
+
+.maplibregl-ctrl-top-left {
+  top: 3.2rem;
+  left: 0.15rem;
+}
+
 
 .app-shell {
   display: grid;
@@ -328,6 +334,7 @@ a {
   color: var(--muted);
   font-size: 0.64rem;
   text-align: center;
+  cursor: pointer;
 }
 
 .criteria-progress li::before {
@@ -913,7 +920,7 @@ label > span,
 .locate-user {
   position: absolute;
   z-index: 4;
-  top: 5.6rem;
+  top: 7.2rem;
   left: 0.65rem;
   width: 2.25rem;
   height: 2.25rem;
@@ -1451,10 +1458,16 @@ footer {
   }
 
   .app-shell {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
   }
 
   .map-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
     height: auto;
     overflow: visible;
   }
@@ -1496,8 +1509,9 @@ footer {
 
   .map-stage,
   #map {
-    min-height: 52vh;
-    height: 52vh;
+    min-height: 0;
+    height: auto;
+    flex: 1;
     flex-basis: auto;
   }
 

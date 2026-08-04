@@ -1936,6 +1936,12 @@ function bindEvents() {
   elements.previousStepButtons.forEach((button) =>
     button.addEventListener("click", () => setCriteriaStep(button.dataset.previousStep)),
   );
+  elements.criteriaProgress.forEach((item) => {
+    item.addEventListener("click", () => {
+      const step = Number(item.dataset.criteriaProgress);
+      setCriteriaStep(step);
+    });
+  });
   elements.showResults.addEventListener("click", () => showSearchResults());
   elements.backToCriteria.addEventListener("click", showSearchCriteria);
   elements.openTutorial.addEventListener("click", () => showWelcomeDialog({ force: true }));
