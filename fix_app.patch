@@ -1,0 +1,72 @@
+--- src/app.js
++++ src/app.js
+@@ -992,6 +992,44 @@
+   };
+ }
+ 
++async function areaSpeciesObservations() {
++  if (!state.selectedSpeciesList.length || !state.skandobs) return [];
++  const range = currentRange();
++  const allowedFeatureIndexes = new Set(
++    areaTrails()
++      .map((feature) => state.speciesPointFeatureIndex.get(feature.id))
++      .filter((index) => index !== undefined),
++  );
++  
++  let allObservations = [];
++  for (const species of state.selectedSpeciesList) {
++    const selectedTaxonId = String(species.taxonId);
++    const bucketFiles = species.pointBucket
++      ? state.searchIndex.speciesObservationFiles?.[species.pointBucket] || []
++      : [];
++    const files = observationFilesForRange({ observationFiles: bucketFiles }, range);
++    const partitions = await Promise.all(files.map(loadPartition));
++    const sosObservations = partitions
++      .flatMap((partition) => (partition.records || []).map(expandObservation))
++      .filter((observation) => String(observation.taxonId) === selectedTaxonId)
++      .filter((observation) =>
++        observation.featureIndexes.some((index) => allowedFeatureIndexes.has(index)),
++      );
++    const observationIds = new Set();
++    areaTrails().forEach((feature) => {
++      (state.skandobs.matches?.[feature.id] || []).forEach((observationId) =>
++        observationIds.add(observationId),
++      );
++    });
++    const skandobsObservations = [...observationIds]
++        .map((observationId) => state.skandobsRecordById.get(observationId))
++        .filter(Boolean)
++        .filter((record) => String(record.taxonId) === selectedTaxonId)
++        .map(expandSkandobsObservation);
++    allObservations.push(...sosObservations, ...skandobsObservations);
++  }
++  return filterObservations(allObservations, range);
++}
++
+ async function renderAreaSpeciesObservations(request) {
+   setObservations([]);
+   setObservationTableRows([]);
+@@ -1004,11 +1042,10 @@
+     return;
+   }
+   
+-  const range = currentRange();
+-  const observations = areaTrails().flatMap((trail) => {
+-    return filterObservations(trail.observations, range).filter(
+-      (observation) => state.selectedSpeciesList.some(s => String(observation.taxonId) === String(s.taxonId))
+-    );
+-  });
++  let observations;
++  try {
++    observations = await areaSpeciesObservations();
++  } catch (error) {
++    if (request !== state.detailsRequest) return;
++    console.error(error);
++    elements.mapObservationSummary.textContent = t("speciesMapLoadError");
++    return;
++  }
++  if (request !== state.detailsRequest) return;
++  renderRedlistFilters(observations);
+   
+   const colorMap = {};
+   state.selectedSpeciesList.forEach(s => {
