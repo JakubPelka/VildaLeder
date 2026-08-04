@@ -21,6 +21,7 @@ import {
   clearUserLocation,
   fitAllTrails,
   fitTrail,
+  initMap,
   focusObservation,
   refreshMapSize,
   setObservationColors,
