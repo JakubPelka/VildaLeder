@@ -212,14 +212,20 @@ a {
 }
 
 .menu-toggle {
+  position: absolute;
+  z-index: 4;
+  top: 0.65rem;
+  left: 3.4rem;
   display: grid;
-  width: 2.7rem;
-  height: 2.7rem;
-  padding: 0.62rem;
-  border-color: var(--brand);
-  background: #fff;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0.5rem;
+  border: 2px solid rgb(0 0 0 / 12%);
+  border-radius: 0.35rem;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: var(--shadow);
   cursor: pointer;
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 
 .menu-toggle > span:not(.sr-only) {

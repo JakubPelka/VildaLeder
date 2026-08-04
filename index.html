@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260804-search-wizard-v18">
+    <link rel="stylesheet" href="styles.css?v=20260804-map-menu-v19">
   </head>
   <body>
     <section
@@ -59,18 +59,6 @@
             <option value="pl">Polski</option>
           </select>
         </label>
-        <button
-          id="menu-toggle"
-          class="menu-toggle"
-          type="button"
-          aria-controls="search-sidebar"
-          aria-expanded="false"
-        >
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-          <span class="sr-only" data-i18n="openSearchMenu">Open search menu</span>
-        </button>
       </div>
     </header>
 
@@ -262,6 +250,18 @@
       <section class="map-panel" aria-label="Nature destination map">
         <div class="map-stage">
           <div id="map"></div>
+          <button
+            id="menu-toggle"
+            class="menu-toggle"
+            type="button"
+            aria-controls="search-sidebar"
+            aria-expanded="false"
+          >
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span class="sr-only" data-i18n="openSearchMenu">Open search menu</span>
+          </button>
           <button id="locate-user" class="locate-user" type="button" aria-pressed="false" disabled>
             <svg class="locate-user-icon" viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="3"></circle>
@@ -354,6 +354,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260804-search-wizard-v18"></script>
+    <script type="module" src="src/app.js?v=20260804-map-menu-v19"></script>
   </body>
 </html>
