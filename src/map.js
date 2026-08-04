@@ -156,8 +156,8 @@ function addDataLayers() {
     source: SOURCE_CORRIDORS,
     filter: ["==", ["get", "visible"], true],
     paint: {
-      "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#176b48"],
-      "line-width": ["case", ["==", ["get", "selected"], true], 1.8, 1],
+      "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#176b48"],
+      "line-width": ["case", ["==", ["get", "selected"], true], 1.8, ["boolean", ["feature-state", "hover"], false], 1.5, 1],
       "line-opacity": ["case", ["==", ["get", "visible"], false], 0.05, 0.35],
     },
   });
@@ -171,13 +171,15 @@ function addDataLayers() {
       ["==", ["get", "visible"], true],
     ],
     paint: {
-      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#2f855a"],
+      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#2f855a"],
       "fill-opacity": [
         "case",
         ["==", ["get", "visible"], false],
         0.01,
         ["==", ["get", "selected"], true],
         0.32,
+        ["boolean", ["feature-state", "hover"], false],
+        0.25,
         0.18,
       ],
     },
@@ -192,8 +194,8 @@ function addDataLayers() {
       ["==", ["get", "visible"], true],
     ],
     paint: {
-      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#287552"],
-      "fill-opacity": ["case", ["==", ["get", "selected"], true], 0.38, 0.24],
+      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#287552"],
+      "fill-opacity": ["case", ["==", ["get", "selected"], true], 0.38, ["boolean", ["feature-state", "hover"], false], 0.30, 0.24],
     },
   });
   map.addLayer({
@@ -207,8 +209,8 @@ function addDataLayers() {
     ],
     layout: { "line-cap": "round", "line-join": "round" },
     paint: {
-      "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#176b48"],
-      "line-width": ["case", ["==", ["get", "selected"], true], 7, 4],
+      "line-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#176b48"],
+      "line-width": ["case", ["==", ["get", "selected"], true], 7, ["boolean", ["feature-state", "hover"], false], 5.5, 4],
       "line-opacity": [
         "case",
         ["==", ["get", "visible"], false],
@@ -240,9 +242,9 @@ function addDataLayers() {
         "observation_tower", "#176b8c",
         "#ad6b19",
       ],
-      "circle-radius": ["case", ["==", ["get", "selected"], true], 9, 6],
-      "circle-stroke-color": ["case", ["==", ["get", "selected"], true], "#d56a13", "#ffffff"],
-      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 3, 2],
+      "circle-radius": ["case", ["==", ["get", "selected"], true], 9, ["boolean", ["feature-state", "hover"], false], 7.5, 6],
+      "circle-stroke-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#e2842c", "#ffffff"],
+      "circle-stroke-width": ["case", ["==", ["get", "selected"], true], 3, ["boolean", ["feature-state", "hover"], false], 3, 2],
     },
   });
   map.addLayer({
@@ -470,6 +472,7 @@ export function setTrails(trails, visibleTrailIds, selectedTrailId) {
     type: "FeatureCollection",
     features: trails.map((trail) => ({
       type: "Feature",
+      id: trail.id,
       properties: properties(trail),
       geometry: trail.corridor,
     })),
@@ -478,10 +481,26 @@ export function setTrails(trails, visibleTrailIds, selectedTrailId) {
     type: "FeatureCollection",
     features: trails.map((trail) => ({
       type: "Feature",
+      id: trail.id,
       properties: properties(trail),
       geometry: trail.geometry,
     })),
   });
+}
+
+let hoveredTrailId = null;
+
+export function setHoveredTrail(trailId) {
+  if (!mapReady) return;
+  if (hoveredTrailId) {
+    map.setFeatureState({ source: SOURCE_TRAILS, id: hoveredTrailId }, { hover: false });
+    map.setFeatureState({ source: SOURCE_CORRIDORS, id: hoveredTrailId }, { hover: false });
+  }
+  hoveredTrailId = trailId;
+  if (hoveredTrailId) {
+    map.setFeatureState({ source: SOURCE_TRAILS, id: hoveredTrailId }, { hover: true });
+    map.setFeatureState({ source: SOURCE_CORRIDORS, id: hoveredTrailId }, { hover: true });
+  }
 }
 
 export function setObservations(observations) {

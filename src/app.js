@@ -26,6 +26,7 @@ import {
   setObservationColors,
   setObservations,
   setTrails,
+  setHoveredTrail,
   setUserLocation,
   showFeaturePopup,
   showObservationPopup,
@@ -812,6 +813,8 @@ function renderTrailResults() {
       : t("observationSyncPending");
     button.append(node("span", "result-meta", `${dimension} · ${evidence}`));
     button.addEventListener("click", () => selectTrail(trail.id));
+    button.addEventListener("mouseenter", () => setHoveredTrail(trail.id));
+    button.addEventListener("mouseleave", () => setHoveredTrail(null));
     elements.trailResults.append(button);
   });
 }
@@ -907,6 +910,8 @@ async function renderSpeciesResults() {
     button.lastChild.append(evidenceSpan);
     
     button.addEventListener("click", () => selectTrail(ranking.trail.id));
+    button.addEventListener("mouseenter", () => setHoveredTrail(ranking.trail.id));
+    button.addEventListener("mouseleave", () => setHoveredTrail(null));
     item.append(button);
     if (state.mode === "species" && ranking.trail.id === state.selectedTrailId) {
       item.append(elements.trailDetails);
