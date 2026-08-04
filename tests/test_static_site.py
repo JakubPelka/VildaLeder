@@ -227,6 +227,39 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("detailsCell.colSpan = 5", app)
         self.assertGreaterEqual(translations.count("observationCountColumn"), 3)
 
+    def test_issue_26_uses_a_three_step_search_drawer_and_replaces_it_with_results(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        styles = (ROOT / "styles.css").read_text(encoding="utf-8")
+        translations = (ROOT / "src" / "i18n.js").read_text(encoding="utf-8")
+        self.assertIn('id="menu-toggle"', html)
+        self.assertIn('id="search-sidebar"', html)
+        self.assertIn('id="sidebar-scrim"', html)
+        self.assertEqual(html.count("data-criteria-step="), 3)
+        self.assertIn('id="criteria-view"', html)
+        self.assertIn('id="results-view" class="results-view" hidden', html)
+        self.assertIn('id="show-results"', html)
+        self.assertIn('id="back-to-criteria"', html)
+        self.assertIn('id="open-tutorial"', html)
+        self.assertIn("function setCriteriaStep(step)", app)
+        self.assertIn("function validateLocationCriteria()", app)
+        self.assertIn("function showSearchResults", app)
+        self.assertIn("function showSearchCriteria()", app)
+        self.assertIn('showWelcomeDialog({ force: true })', app)
+        self.assertIn('document.body.classList.toggle("sidebar-is-open", open)', app)
+        self.assertIn("transform: translateX(-105%)", styles)
+        self.assertGreaterEqual(translations.count("choosePlaceTypeToContinue"), 3)
+        self.assertNotIn('class="mode-tabs"', html)
+
+    def test_issue_27_links_grouped_species_to_artfakta_by_taxon_id(self):
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        translations = (ROOT / "src" / "i18n.js").read_text(encoding="utf-8")
+        self.assertIn("function artfaktaUrl(taxon)", app)
+        self.assertIn("https://artfakta.se/taxa/", app)
+        self.assertIn('node("a", "artfakta-link"', app)
+        self.assertIn('artfaktaLink.target = "_blank"', app)
+        self.assertGreaterEqual(translations.count("readOnArtfakta"), 3)
+
     def test_refresh_is_owned_by_the_local_server_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
             encoding="utf-8"

@@ -258,7 +258,9 @@ aggregates serve responsive period counts and rankings. Provider records remain
 separate so SOS/Artportalen and GBIF provenance can be retained and cross-source
 duplicates can later resolve to one canonical observation.
 
-The planned GBIF enrichment excludes GBIF's
+GBIF occurrence enrichment is a required part of the Sweden-wide data platform,
+with SOS/Artportalen retained as the fresher Swedish baseline. The GBIF adapter
+will exclude GBIF's
 [complete Artportalen dataset](https://www.gbif.org/dataset/38b4c89f-584c-41bb-bd8f-cd1def33e92f)
 by its stable dataset key (`38b4c89f-584c-41bb-bd8f-cd1def33e92f`) before import. The
 remaining GBIF datasets add observations from other publishers. VildaLeder will
@@ -349,9 +351,10 @@ The nightly Halland refresh repeats this enrichment for newly encountered taxa.
 Results are cached outside the repository under `~/.cache/vildaleder`, and the
 static search index exports available `sv`, `en`, and `pl` names. Observation
 ingestion still treats SOS/Artportalen as the Swedish baseline: it is fresher and
-retains the direct source evidence used by the product. GBIF occurrence data is
-a later complementary source, excluding GBIF's complete Artportalen dataset to
-avoid importing the same feed twice.
+retains the direct source evidence used by the product. The occurrence importer
+is not implemented yet; it is the required complementary ingestion step after
+the SOS national baseline and will exclude GBIF's complete Artportalen dataset
+to avoid importing the same feed twice.
 
 ## Product principles
 

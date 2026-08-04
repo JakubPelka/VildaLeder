@@ -13,8 +13,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-place-search-v16";
-import { translations, translator } from "./i18n.js?v=20260804-place-search-v16";
+} from "./core.js?v=20260804-search-wizard-v17";
+import { translations, translator } from "./i18n.js?v=20260804-search-wizard-v17";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -28,7 +28,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-place-search-v16";
+} from "./map.js?v=20260804-search-wizard-v17";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -90,6 +90,8 @@ const state = {
   observationTableSort: { key: "date", direction: "desc" },
   language: initialLanguage(),
   mode: "trail",
+  criteriaStep: 1,
+  searchView: "criteria",
   featureKind: "",
   county: "",
   municipality: "",
@@ -112,6 +114,20 @@ const elements = {
   welcomeClose: document.querySelector("#welcome-close"),
   welcomeStart: document.querySelector("#welcome-start"),
   welcomeDismiss: document.querySelector("#welcome-dismiss"),
+  sidebar: document.querySelector("#search-sidebar"),
+  menuToggle: document.querySelector("#menu-toggle"),
+  sidebarClose: document.querySelector("#sidebar-close"),
+  sidebarScrim: document.querySelector("#sidebar-scrim"),
+  criteriaView: document.querySelector("#criteria-view"),
+  resultsView: document.querySelector("#results-view"),
+  criteriaSteps: [...document.querySelectorAll("[data-criteria-step]")],
+  criteriaProgress: [...document.querySelectorAll("[data-criteria-progress]")],
+  criteriaValidation: document.querySelector("#criteria-validation"),
+  nextStepButtons: [...document.querySelectorAll("[data-next-step]")],
+  previousStepButtons: [...document.querySelectorAll("[data-previous-step]")],
+  showResults: document.querySelector("#show-results"),
+  backToCriteria: document.querySelector("#back-to-criteria"),
+  openTutorial: document.querySelector("#open-tutorial"),
   status: document.querySelector("#status"),
   locateUser: document.querySelector("#locate-user"),
   locationStatus: document.querySelector("#location-status"),
@@ -152,7 +168,6 @@ const elements = {
   observationTableBody: document.querySelector("#observation-table-body"),
   observationTableEmpty: document.querySelector("#observation-table-empty"),
   observationSortButtons: [...document.querySelectorAll(".observation-sort-button")],
-  modeTabs: [...document.querySelectorAll(".mode-tab")],
 };
 
 function initialLanguage() {
@@ -320,8 +335,15 @@ function applyLanguage() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
     element.placeholder = t(element.dataset.i18nPlaceholder);
   });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+  });
   elements.mapTableResizer.setAttribute("aria-label", t("resizeMapTable"));
   elements.welcomeClose.setAttribute("aria-label", t("welcomeClose"));
+  elements.menuToggle.setAttribute("aria-label", t("openSearchMenu"));
+  elements.menuToggle.setAttribute("title", t("openSearchMenu"));
+  elements.sidebarClose.setAttribute("aria-label", t("closeSearchMenu"));
+  elements.sidebarScrim.setAttribute("aria-label", t("closeSearchMenu"));
   updateLocationButton();
   if (state.catalog) renderAll();
 }
@@ -346,11 +368,71 @@ function closeWelcomeDialog({ remember = false } = {}) {
   document.body.classList.remove("welcome-is-open");
 }
 
-function showWelcomeDialog() {
-  if (cookieValue(WELCOME_COOKIE) === "1") return;
+function showWelcomeDialog({ force = false } = {}) {
+  if (!force && cookieValue(WELCOME_COOKIE) === "1") return;
   elements.welcomeDialog.hidden = false;
   document.body.classList.add("welcome-is-open");
   window.requestAnimationFrame(() => elements.welcomeClose.focus());
+}
+
+function setSidebarOpen(open) {
+  document.body.classList.toggle("sidebar-is-open", open);
+  elements.menuToggle.setAttribute("aria-expanded", String(open));
+  elements.sidebarScrim.hidden = !open;
+  if (open) {
+    window.requestAnimationFrame(() => elements.sidebar.focus({ preventScroll: true }));
+  }
+}
+
+function clearCriteriaValidation() {
+  elements.criteriaValidation.hidden = true;
+  elements.criteriaValidation.textContent = "";
+}
+
+function setCriteriaStep(step) {
+  const nextStep = Math.min(3, Math.max(1, Number(step) || 1));
+  state.criteriaStep = nextStep;
+  clearCriteriaValidation();
+  elements.criteriaSteps.forEach((section) => {
+    section.hidden = Number(section.dataset.criteriaStep) !== nextStep;
+  });
+  elements.criteriaProgress.forEach((item) => {
+    const itemStep = Number(item.dataset.criteriaProgress);
+    item.classList.toggle("is-active", itemStep === nextStep);
+    item.classList.toggle("is-complete", itemStep < nextStep);
+    if (itemStep === nextStep) item.setAttribute("aria-current", "step");
+    else item.removeAttribute("aria-current");
+  });
+  elements.sidebar.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function validateLocationCriteria() {
+  if (state.featureKind) return true;
+  setCriteriaStep(2);
+  elements.criteriaValidation.textContent = t("choosePlaceTypeToContinue");
+  elements.criteriaValidation.hidden = false;
+  window.requestAnimationFrame(() => elements.featureKind.focus());
+  return false;
+}
+
+function showSearchResults({ validate = true } = {}) {
+  if (validate && !validateLocationCriteria()) return false;
+  state.speciesQuery = elements.speciesSearch.value;
+  const mode = state.speciesQuery.trim() ? "species" : "trail";
+  setMode(mode);
+  state.searchView = "results";
+  elements.criteriaView.hidden = true;
+  elements.resultsView.hidden = false;
+  elements.sidebar.scrollTo({ top: 0, behavior: "smooth" });
+  if (state.catalog) renderAll();
+  return true;
+}
+
+function showSearchCriteria() {
+  state.searchView = "criteria";
+  elements.resultsView.hidden = true;
+  elements.criteriaView.hidden = false;
+  setCriteriaStep(1);
 }
 
 function populateAreaFilters() {
@@ -1059,6 +1141,12 @@ function observationTaxonKey(taxon) {
   ).toLocaleLowerCase();
 }
 
+function artfaktaUrl(taxon) {
+  const identifier = String(taxon?.sourceTaxonId ?? taxon?.taxonId ?? "");
+  const match = identifier.match(/(?:^|:)(\d+)$/);
+  return match ? `https://artfakta.se/taxa/${match[1]}` : "";
+}
+
 function observationGroupSources(taxon) {
   return [...new Set(taxon.observations.map((observation) => observation.dataset).filter(Boolean))]
     .sort((left, right) => left.localeCompare(right, state.language));
@@ -1323,6 +1411,14 @@ function observationTaxonRows(taxon) {
     renderObservationTable();
   });
   speciesCell.append(toggle);
+  const taxonUrl = artfaktaUrl(taxon);
+  if (taxonUrl) {
+    const artfaktaLink = node("a", "artfakta-link", `${t("readOnArtfakta")} ↗`);
+    artfaktaLink.href = taxonUrl;
+    artfaktaLink.target = "_blank";
+    artfaktaLink.rel = "noreferrer";
+    speciesCell.append(artfaktaLink);
+  }
   const countCell = node("td", "observation-count", formatNumber(taxon.count));
   const dateCell = node("td", "", formatDate(taxon.lastSeen));
   const categoryCell = document.createElement("td");
@@ -1625,7 +1721,8 @@ function selectTrail(trailId) {
   updateMapStyles();
   fitTrail(state.catalog.trails.find((trail) => trail.id === trailId));
   if (window.innerWidth <= 800) {
-    document.querySelector(".sidebar").scrollIntoView({ behavior: "smooth" });
+    setSidebarOpen(true);
+    elements.sidebar.scrollTo({ top: 0, behavior: "smooth" });
   }
 }
 
@@ -1670,6 +1767,7 @@ function resetFilters() {
   elements.trailSearch.value = "";
   elements.speciesSearch.value = "";
   setMode("trail");
+  showSearchCriteria();
   renderAll();
   fitAllTrails(areaTrails());
 }
@@ -1794,11 +1892,6 @@ function setMode(mode) {
     state.loadedSelection = null;
   }
   state.mode = mode;
-  elements.modeTabs.forEach((tab) => {
-    const active = tab.dataset.mode === mode;
-    tab.classList.toggle("is-active", active);
-    tab.setAttribute("aria-selected", String(active));
-  });
   elements.trailPanel.hidden = mode !== "trail";
   elements.speciesPanel.hidden = mode !== "species";
   if (mode !== "species" && elements.trailDetails.parentElement !== elements.trailDetailsHome) {
@@ -1815,8 +1908,26 @@ function bindEvents() {
     if (event.target === elements.welcomeDialog) closeWelcomeDialog();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !elements.welcomeDialog.hidden) closeWelcomeDialog();
+    if (event.key !== "Escape") return;
+    if (!elements.welcomeDialog.hidden) closeWelcomeDialog();
+    else if (document.body.classList.contains("sidebar-is-open")) setSidebarOpen(false);
   });
+  elements.menuToggle.addEventListener("click", () => setSidebarOpen(true));
+  elements.sidebarClose.addEventListener("click", () => setSidebarOpen(false));
+  elements.sidebarScrim.addEventListener("click", () => setSidebarOpen(false));
+  elements.nextStepButtons.forEach((button) =>
+    button.addEventListener("click", () => {
+      const step = Number(button.dataset.nextStep);
+      if (step === 3 && !validateLocationCriteria()) return;
+      setCriteriaStep(step);
+    }),
+  );
+  elements.previousStepButtons.forEach((button) =>
+    button.addEventListener("click", () => setCriteriaStep(button.dataset.previousStep)),
+  );
+  elements.showResults.addEventListener("click", () => showSearchResults());
+  elements.backToCriteria.addEventListener("click", showSearchCriteria);
+  elements.openTutorial.addEventListener("click", () => showWelcomeDialog({ force: true }));
   elements.language.addEventListener("change", () => {
     state.language = elements.language.value;
     localStorage.setItem("vildaleder-language", state.language);
@@ -1826,12 +1937,12 @@ function bindEvents() {
   elements.locateUser.addEventListener("click", toggleLocationTracking);
   elements.localitySearchForm.addEventListener("submit", searchLocality);
   elements.resetFilters.addEventListener("click", resetFilters);
-  elements.modeTabs.forEach((tab) => tab.addEventListener("click", () => setMode(tab.dataset.mode)));
   elements.observationSortButtons.forEach((button) =>
     button.addEventListener("click", () => sortObservationTable(button.dataset.sort)),
   );
   elements.featureKind.addEventListener("change", () => {
     state.featureKind = elements.featureKind.value;
+    if (state.featureKind) clearCriteriaValidation();
     if (state.featureKind) {
       localStorage.setItem(FEATURE_KIND_PREFERENCE_KEY, state.featureKind);
     } else {
@@ -1961,6 +2072,7 @@ async function start() {
   applyLanguage();
   initialisePeriodControls();
   initialiseFeatureKindControl();
+  setCriteriaStep(1);
   bindEvents();
   showWelcomeDialog();
   setupMapTableResizer();
@@ -1975,7 +2087,9 @@ async function start() {
       loadJson("data/skandobs.json", "Skandobs snapshot"),
       initMap({
         onTrailClick: (trailId, lngLat) => {
+          if (state.searchView === "criteria") showSearchResults();
           selectTrail(trailId);
+          if (window.innerWidth <= 800) setSidebarOpen(true);
           const feature = state.catalog?.trails.find((candidate) => candidate.id === trailId);
           if (feature) showFeaturePopup(lngLat, featurePopup(feature));
         },
@@ -1992,6 +2106,7 @@ async function start() {
     state.appReady = true;
     updateLocationButton();
     elements.localitySearchSubmit.disabled = false;
+    elements.showResults.disabled = false;
     state.speciesPointFeatureIndex = new Map(
       (searchIndex.speciesPointFeatureIds || []).map((featureId, index) => [featureId, index]),
     );

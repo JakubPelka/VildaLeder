@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260804-place-search-v16">
+    <link rel="stylesheet" href="styles.css?v=20260804-search-wizard-v17">
   </head>
   <body>
     <section
@@ -50,177 +50,214 @@
         <a class="brand" href="./">VildaLeder</a>
         <p class="tagline" data-i18n="tagline">Wildlife observations along Sweden's trails</p>
       </div>
-      <label class="language-picker">
-        <span data-i18n="language">Language</span>
-        <select id="language" aria-label="Language">
-          <option value="en">English</option>
-          <option value="sv">Svenska</option>
-          <option value="pl">Polski</option>
-        </select>
-      </label>
+      <div class="header-actions">
+        <label class="language-picker">
+          <span data-i18n="language">Language</span>
+          <select id="language" aria-label="Language">
+            <option value="en">English</option>
+            <option value="sv">Svenska</option>
+            <option value="pl">Polski</option>
+          </select>
+        </label>
+        <button
+          id="menu-toggle"
+          class="menu-toggle"
+          type="button"
+          aria-controls="search-sidebar"
+          aria-expanded="false"
+        >
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span class="sr-only" data-i18n="openSearchMenu">Open search menu</span>
+        </button>
+      </div>
     </header>
 
     <main class="app-shell">
-      <aside class="sidebar" aria-label="Search and results">
+      <aside id="search-sidebar" class="sidebar" aria-label="Search and results" tabindex="-1">
+        <div class="sidebar-heading">
+          <strong data-i18n="searchMenu">Search</strong>
+          <button id="sidebar-close" class="sidebar-close" type="button">
+            <span aria-hidden="true">×</span>
+            <span class="sr-only" data-i18n="closeSearchMenu">Close search menu</span>
+          </button>
+        </div>
         <div id="status" class="status" role="status" aria-live="polite">
           <span class="spinner" aria-hidden="true"></span>
           <span data-i18n="loading">Loading trails and observations…</span>
         </div>
 
-        <div class="mode-tabs" role="tablist" aria-label="Search mode">
-          <button
-            id="trail-tab"
-            class="mode-tab is-active"
-            type="button"
-            role="tab"
-            aria-selected="true"
-            aria-controls="trail-panel"
-            data-mode="trail"
-            data-i18n="byPlace"
-          >
-            By place
-          </button>
-          <button
-            id="species-tab"
-            class="mode-tab"
-            type="button"
-            role="tab"
-            aria-selected="false"
-            aria-controls="species-panel"
-            data-mode="species"
-            data-i18n="bySpecies"
-          >
-            By species
+        <div id="criteria-view" class="criteria-view">
+          <ol class="criteria-progress" aria-label="Search steps" data-i18n-aria-label="searchSteps">
+            <li class="is-active" data-criteria-progress="1">
+              <span>1</span><strong data-i18n="selectSpeciesStep">Species</strong>
+            </li>
+            <li data-criteria-progress="2">
+              <span>2</span><strong data-i18n="selectLocationStep">Location</strong>
+            </li>
+            <li data-criteria-progress="3">
+              <span>3</span><strong data-i18n="selectPeriodStep">Period</strong>
+            </li>
+          </ol>
+          <p id="criteria-validation" class="criteria-validation" role="alert" hidden></p>
+
+          <section class="wizard-step" data-criteria-step="1" aria-labelledby="species-step-heading">
+            <p class="step-count" data-i18n="stepOneOfThree">Step 1 of 3</p>
+            <h2 id="species-step-heading" data-i18n="selectSpecies">Select species</h2>
+            <p class="help-text" data-i18n="speciesOptional">
+              Optional. Leave this empty to explore trails and reserves by location.
+            </p>
+            <label class="search-label" for="species-search" data-i18n="findSpecies">Find a species</label>
+            <input
+              id="species-search"
+              type="search"
+              list="species-suggestions"
+              autocomplete="off"
+              data-i18n-placeholder="speciesPlaceholder"
+              placeholder="Havsörn or Haliaeetus albicilla"
+            >
+            <datalist id="species-suggestions"></datalist>
+            <p class="help-text" data-i18n="speciesLanguageNote">
+              Search using Swedish, English, Polish, or scientific names when available.
+            </p>
+            <div class="wizard-actions wizard-actions-end">
+              <button class="wizard-primary" type="button" data-next-step="2" data-i18n="nextStep">Next</button>
+            </div>
+          </section>
+
+          <section class="wizard-step" data-criteria-step="2" aria-labelledby="area-heading" hidden>
+            <p class="step-count" data-i18n="stepTwoOfThree">Step 2 of 3</p>
+            <h2 id="area-heading" data-i18n="selectLocationAndType">Select location and place type</h2>
+            <form id="locality-search-form" class="locality-search" role="search">
+              <label class="search-label" for="locality-search" data-i18n="findLocality">Find a place on the map</label>
+              <div class="locality-search-controls">
+                <input
+                  id="locality-search"
+                  type="search"
+                  minlength="2"
+                  maxlength="120"
+                  required
+                  autocomplete="off"
+                  data-i18n-placeholder="localityPlaceholder"
+                  placeholder="Town, village, or place name"
+                >
+                <button id="locality-search-submit" type="submit" data-i18n="searchMap" disabled>Search map</button>
+              </div>
+              <p id="locality-search-status" class="help-text" role="status" aria-live="polite" hidden></p>
+              <div id="locality-search-results" class="locality-search-results" hidden></div>
+              <p class="help-text locality-search-attribution">
+                <span data-i18n="placeSearchAttribution">Place search:</span>
+                <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noreferrer">Nominatim / OpenStreetMap</a>
+              </p>
+            </form>
+            <label>
+              <span data-i18n="placeType">Place type</span>
+              <select id="feature-kind">
+                <option value="" data-i18n="choosePlaceType" selected>Choose what to show</option>
+                <option value="trail" data-i18n="trailsOnly">Trails</option>
+                <option value="reserve" data-i18n="reservesOnly">Nature reserves</option>
+                <option value="national_park" data-i18n="nationalParksOnly">National parks</option>
+                <option value="observation_infrastructure" data-i18n="observationInfrastructureOnly">Observation infrastructure</option>
+                <option value="all" data-i18n="allPlaceTypes">All places</option>
+              </select>
+            </label>
+            <div class="two-columns">
+              <label>
+                <span data-i18n="county">County (län)</span>
+                <select id="county"></select>
+              </label>
+              <label>
+                <span data-i18n="municipality">Municipality (kommun)</span>
+                <select id="municipality"></select>
+              </label>
+            </div>
+            <p class="data-caveat" data-i18n="trailCoverageNote">
+              Trail coverage combines OpenStreetMap and Naturvårdsverket data and may be incomplete or outdated.
+            </p>
+            <div class="wizard-actions">
+              <button class="wizard-secondary" type="button" data-previous-step="1" data-i18n="previousStep">Back</button>
+              <button class="wizard-primary" type="button" data-next-step="3" data-i18n="nextStep">Next</button>
+            </div>
+          </section>
+
+          <section class="wizard-step" data-criteria-step="3" aria-labelledby="period-heading" hidden>
+            <p class="step-count" data-i18n="stepThreeOfThree">Step 3 of 3</p>
+            <h2 id="period-heading" data-i18n="selectSearchPeriod">Select search period</h2>
+            <label>
+              <span class="sr-only" data-i18n="period">Observation period</span>
+              <select id="period">
+                <option value="day" data-i18n="oneDay">Latest day</option>
+                <option value="month" data-i18n="oneMonth">Last 30 days</option>
+                <option value="quarter" data-i18n="oneQuarter">Last 90 days</option>
+                <option value="year" data-i18n="oneYear" selected>Last 365 days</option>
+                <option value="custom" data-i18n="custom">Custom dates</option>
+              </select>
+            </label>
+            <div id="custom-dates" class="two-columns custom-dates" hidden>
+              <label>
+                <span data-i18n="from">From</span>
+                <input id="date-from" type="date">
+              </label>
+              <label>
+                <span data-i18n="to">To</span>
+                <input id="date-to" type="date">
+              </label>
+            </div>
+            <p class="help-text" data-i18n="maximumRangeNote">The maximum observation search range is the last 10 years.</p>
+            <p id="snapshot-note" class="help-text"></p>
+            <p class="data-caveat" data-i18n="sensitiveSpeciesNote">
+              Some sensitive species are withheld or shown with generalized locations by source databases. Missing public points do not prove that a species is absent.
+            </p>
+            <button id="reset-filters" class="reset-filters" type="button" data-i18n="resetFilters">Reset filters and selection</button>
+            <div class="wizard-actions">
+              <button class="wizard-secondary" type="button" data-previous-step="2" data-i18n="previousStep">Back</button>
+              <button id="show-results" class="wizard-primary" type="button" data-i18n="showResults" disabled>Show results</button>
+            </div>
+          </section>
+
+          <button id="open-tutorial" class="about-tutorial" type="button" data-i18n="aboutAndTutorial">
+            About &amp; tutorial
           </button>
         </div>
 
-        <section class="filter-block" aria-labelledby="area-heading">
-          <h2 id="area-heading" data-i18n="area">Area</h2>
-          <form id="locality-search-form" class="locality-search" role="search">
-            <label class="search-label" for="locality-search" data-i18n="findLocality">Find a place on the map</label>
-            <div class="locality-search-controls">
-              <input
-                id="locality-search"
-                type="search"
-                minlength="2"
-                maxlength="120"
-                required
-                autocomplete="off"
-                data-i18n-placeholder="localityPlaceholder"
-                placeholder="Town, village, or place name"
-              >
-              <button id="locality-search-submit" type="submit" data-i18n="searchMap" disabled>
-                Search map
-              </button>
+        <div id="results-view" class="results-view" hidden>
+          <div class="results-heading">
+            <div>
+              <p class="step-count" data-i18n="searchResults">Search results</p>
+              <h2 data-i18n="rankedPlaces">Ranked places</h2>
             </div>
-            <p id="locality-search-status" class="help-text" role="status" aria-live="polite" hidden></p>
-            <div id="locality-search-results" class="locality-search-results" hidden></div>
-            <p class="help-text locality-search-attribution">
-              <span data-i18n="placeSearchAttribution">Place search:</span>
-              <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noreferrer">Nominatim / OpenStreetMap</a>
-            </p>
-          </form>
-          <label>
-            <span data-i18n="placeType">Place type</span>
-            <select id="feature-kind">
-              <option value="" data-i18n="choosePlaceType" selected>Choose what to show</option>
-              <option value="trail" data-i18n="trailsOnly">Trails</option>
-              <option value="reserve" data-i18n="reservesOnly">Nature reserves</option>
-              <option value="national_park" data-i18n="nationalParksOnly">National parks</option>
-              <option value="observation_infrastructure" data-i18n="observationInfrastructureOnly">Observation infrastructure</option>
-              <option value="all" data-i18n="allPlaceTypes">All places</option>
-            </select>
-          </label>
-          <div class="two-columns">
-            <label>
-              <span data-i18n="county">County (län)</span>
-              <select id="county"></select>
-            </label>
-            <label>
-              <span data-i18n="municipality">Municipality (kommun)</span>
-              <select id="municipality"></select>
-            </label>
+            <button id="back-to-criteria" class="wizard-secondary" type="button" data-i18n="backToCriteria">
+              Back to search criteria
+            </button>
           </div>
-          <p class="data-caveat" data-i18n="trailCoverageNote">
-            Trail coverage combines OpenStreetMap and Naturvårdsverket data and may be incomplete or outdated.
-          </p>
-        </section>
 
-        <section class="filter-block" aria-labelledby="period-heading">
-          <h2 id="period-heading" data-i18n="period">Observation period</h2>
-          <label>
-            <span class="sr-only" data-i18n="period">Observation period</span>
-            <select id="period">
-              <option value="day" data-i18n="oneDay">Latest day</option>
-              <option value="month" data-i18n="oneMonth">Last 30 days</option>
-              <option value="quarter" data-i18n="oneQuarter">Last 90 days</option>
-              <option value="year" data-i18n="oneYear" selected>Last 365 days</option>
-              <option value="custom" data-i18n="custom">Custom dates</option>
-            </select>
-          </label>
-          <div id="custom-dates" class="two-columns custom-dates" hidden>
-            <label>
-              <span data-i18n="from">From</span>
-              <input id="date-from" type="date">
-            </label>
-            <label>
-              <span data-i18n="to">To</span>
-              <input id="date-to" type="date">
-            </label>
+          <section id="trail-panel" aria-label="Place results">
+            <label class="search-label" for="trail-search" data-i18n="filterResultsByName">Filter results by name</label>
+            <input
+              id="trail-search"
+              type="search"
+              autocomplete="off"
+              data-i18n-placeholder="placePlaceholder"
+              placeholder="Trail or nature reserve name"
+            >
+            <div id="trail-results" class="result-list"></div>
+          </section>
+
+          <section id="species-panel" aria-label="Species results" hidden>
+            <div id="species-summary" class="selection-summary"></div>
+            <div id="species-results" class="result-list"></div>
+          </section>
+
+          <div id="trail-details-home">
+            <section id="trail-details" class="details" aria-live="polite"></section>
           </div>
-          <p class="help-text" data-i18n="maximumRangeNote">
-            The maximum observation search range is the last 10 years.
-          </p>
-          <p id="snapshot-note" class="help-text"></p>
-          <p class="data-caveat" data-i18n="sensitiveSpeciesNote">
-            Some sensitive species are withheld or shown with generalized locations by source databases. Missing public points do not prove that a species is absent.
-          </p>
-          <button id="reset-filters" class="reset-filters" type="button" data-i18n="resetFilters">
-            Reset filters and selection
-          </button>
-        </section>
-
-        <section id="trail-panel" role="tabpanel" aria-labelledby="trail-tab">
-          <label class="search-label" for="trail-search" data-i18n="findPlace">Find a trail or nature reserve</label>
-          <input
-            id="trail-search"
-            type="search"
-            autocomplete="off"
-            data-i18n-placeholder="placePlaceholder"
-            placeholder="Trail or nature reserve name"
-          >
-          <div id="trail-results" class="result-list"></div>
-        </section>
-
-        <section
-          id="species-panel"
-          role="tabpanel"
-          aria-labelledby="species-tab"
-          hidden
-        >
-          <label class="search-label" for="species-search" data-i18n="findSpecies">
-            Find a species
-          </label>
-          <input
-            id="species-search"
-            type="search"
-            list="species-suggestions"
-            autocomplete="off"
-            data-i18n-placeholder="speciesPlaceholder"
-            placeholder="Havsörn or Haliaeetus albicilla"
-          >
-          <datalist id="species-suggestions"></datalist>
-          <p class="help-text" data-i18n="speciesLanguageNote">
-            Pilot species names are Swedish and scientific; multilingual taxonomy follows later.
-          </p>
-          <div id="species-summary" class="selection-summary"></div>
-          <div id="species-results" class="result-list"></div>
-        </section>
-
-        <div id="trail-details-home">
-          <section id="trail-details" class="details" aria-live="polite"></section>
         </div>
       </aside>
+
+      <button id="sidebar-scrim" class="sidebar-scrim" type="button" tabindex="-1" hidden>
+        <span class="sr-only" data-i18n="closeSearchMenu">Close search menu</span>
+      </button>
 
       <section class="map-panel" aria-label="Nature destination map">
         <div class="map-stage">
@@ -317,6 +354,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260804-place-search-v16"></script>
+    <script type="module" src="src/app.js?v=20260804-search-wizard-v17"></script>
   </body>
 </html>
