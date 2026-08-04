@@ -56,8 +56,9 @@ The repository now contains a working vertical slice spanning parts of phases
   species intersecting the active trail/reserve buffers before one object is
   selected, while deliberately excluding observations outside tourist places;
 - English, Swedish, and Polish interface dictionaries;
-- a three-step search wizard that keeps criteria while replacing the form with
-  ranked results, plus a left off-canvas search drawer on mobile;
+- a species → period → place search wizard that keeps criteria while replacing
+  the form with ranked results, plus a collapsible desktop sidebar and a left
+  off-canvas search drawer on mobile;
 - direct Artfakta links from grouped species rows when a Dyntaxa taxon ID is
   available;
 - a place-type filter and a full reset control for filters, searches, selected

@@ -207,27 +207,58 @@ a {
   gap: 0.75rem;
 }
 
-.menu-toggle,
-.sidebar-close,
 .sidebar-scrim {
   display: none;
+}
+
+.menu-toggle {
+  display: grid;
+  width: 2.7rem;
+  height: 2.7rem;
+  padding: 0.62rem;
+  border-color: var(--brand);
+  background: #fff;
+  cursor: pointer;
+  gap: 0.25rem;
+}
+
+.menu-toggle > span:not(.sr-only) {
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--brand-dark);
+}
+
+.sidebar-close {
+  display: grid;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.7rem;
+  place-items: center;
 }
 
 .app-shell {
   display: grid;
   flex: 1;
-  grid-template-columns: minmax(340px, 410px) 1fr;
+  grid-template-columns: minmax(340px, 410px) minmax(0, 1fr);
   min-height: 0;
 }
 
 .sidebar {
   z-index: 2;
+  min-width: 0;
   max-height: calc(100vh - 7rem);
   overflow-y: auto;
   padding: 1rem;
   border-right: 1px solid var(--line);
   background: var(--panel);
   box-shadow: var(--shadow);
+  transition: transform 180ms ease-out, opacity 120ms ease-out;
 }
 
 .sidebar-heading {
@@ -1375,6 +1406,25 @@ footer {
   border: 0;
 }
 
+@media (min-width: 801px) {
+  .app-shell {
+    transition: grid-template-columns 180ms ease-out;
+  }
+
+  body.sidebar-is-collapsed .app-shell {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  body.sidebar-is-collapsed .sidebar {
+    overflow: hidden;
+    padding-inline: 0;
+    border-right: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-105%);
+  }
+}
+
 @media (max-width: 800px) {
   .welcome-actions {
     align-items: stretch;
@@ -1425,37 +1475,6 @@ footer {
 
   body.sidebar-is-open .sidebar {
     transform: translateX(0);
-  }
-
-  .menu-toggle {
-    display: grid;
-    width: 2.7rem;
-    height: 2.7rem;
-    padding: 0.62rem;
-    border-color: var(--brand);
-    background: #fff;
-    cursor: pointer;
-    gap: 0.25rem;
-  }
-
-  .menu-toggle > span:not(.sr-only) {
-    display: block;
-    height: 2px;
-    border-radius: 999px;
-    background: var(--brand-dark);
-  }
-
-  .sidebar-close {
-    display: grid;
-    width: 2.4rem;
-    height: 2.4rem;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 1.7rem;
-    place-items: center;
   }
 
   .sidebar-scrim:not([hidden]) {
