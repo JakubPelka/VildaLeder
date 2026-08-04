@@ -762,11 +762,21 @@ function renderTrailResults() {
     return;
   }
   const range = currentRange();
-  const trails = areaTrails(state.trailQuery);
+  let trails = areaTrails(state.trailQuery);
   if (!trails.length) {
     elements.trailResults.append(node("p", "empty-state", t("noTrails")));
     return;
   }
+  
+  trails.sort((a, b) => {
+    const statsA = indexedTrailStats(state.searchIndex, a.id, range);
+    const statsB = indexedTrailStats(state.searchIndex, b.id, range);
+    if (statsB.observations !== statsA.observations) {
+      return (statsB.observations || 0) - (statsA.observations || 0);
+    }
+    return a.name.localeCompare(b.name);
+  });
+  
   trails.forEach((trail) => {
     const stats = indexedTrailStats(state.searchIndex, trail.id, range);
     const button = node("button", "result-card");
