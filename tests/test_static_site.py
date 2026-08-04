@@ -237,6 +237,12 @@ class StaticSiteTests(unittest.TestCase):
         styles = (ROOT / "styles.css").read_text(encoding="utf-8")
         translations = (ROOT / "src" / "i18n.js").read_text(encoding="utf-8")
         self.assertIn('id="menu-toggle"', html)
+        header = html.split('<header class="app-header">', 1)[1].split("</header>", 1)[0]
+        map_stage = html.split('<div class="map-stage">', 1)[1].split(
+            'id="map-table-resizer"', 1
+        )[0]
+        self.assertNotIn('id="menu-toggle"', header)
+        self.assertIn('id="menu-toggle"', map_stage)
         self.assertIn('id="search-sidebar"', html)
         self.assertIn('id="sidebar-scrim"', html)
         self.assertEqual(html.count("data-criteria-step="), 3)
