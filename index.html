@@ -241,6 +241,14 @@
 
           <section id="species-panel" aria-label="Species results" hidden>
             <div id="species-summary" class="selection-summary"></div>
+            <div id="species-sort-controls" class="species-sort-controls" hidden>
+              <label for="species-sort-by" data-i18n="sortBy">Sort by</label>
+              <select id="species-sort-by">
+                <option value="days" data-i18n="observationDays">Observation days</option>
+                <option value="count" data-i18n="observationCount">Observation count</option>
+              </select>
+              <button id="species-sort-dir" type="button" aria-label="Sort direction">⬇️</button>
+            </div>
             <div id="species-results" class="result-list"></div>
           </section>
 

@@ -1626,3 +1626,36 @@ footer {
 .custom-autocomplete li:hover {
   background-color: var(--background);
 }
+
+.species-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.species-sort-controls label {
+  color: var(--text-muted);
+}
+
+.species-sort-controls select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--background);
+  color: var(--text-color);
+}
+
+.species-sort-controls button {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  background-color: var(--background);
+}
+
+.species-sort-controls button:hover {
+  background-color: var(--border-color);
+}

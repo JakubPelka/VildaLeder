@@ -96,6 +96,8 @@ const state = {
   trailQuery: "",
   speciesQuery: "",
   selectedSpeciesList: [],
+  speciesSortBy: "days",
+  speciesSortDir: "desc",
   selectedTrailId: null,
   locationTracking: false,
   locationRequestPending: false,
@@ -149,6 +151,9 @@ const elements = {
   selectedSpeciesList: document.querySelector("#selected-species-list"),
   speciesSuggestions: document.querySelector("#species-suggestions"),
   speciesSummary: document.querySelector("#species-summary"),
+  speciesSortControls: document.querySelector("#species-sort-controls"),
+  speciesSortBy: document.querySelector("#species-sort-by"),
+  speciesSortDir: document.querySelector("#species-sort-dir"),
   trailResults: document.querySelector("#trail-results"),
   speciesResults: document.querySelector("#species-results"),
   trailDetailsHome: document.querySelector("#trail-details-home"),
@@ -819,6 +824,7 @@ async function renderSpeciesResults() {
   }
   elements.speciesResults.replaceChildren();
   elements.speciesSummary.replaceChildren();
+  if (elements.speciesSortControls) elements.speciesSortControls.hidden = true;
   
   if (state.selectedSpeciesList.length === 0 && !state.speciesQuery.trim()) {
     elements.speciesResults.append(node("p", "empty-state", t("noSpecies")));
@@ -849,6 +855,7 @@ async function renderSpeciesResults() {
   }
 
   const query = state.speciesQuery;
+  elements.speciesSortControls.hidden = false;
   elements.speciesResults.append(node("p", "empty-state", t("loadingRankings")));
   
   try {
@@ -870,7 +877,8 @@ async function renderSpeciesResults() {
     areaTrails(),
     targetList,
     currentRange(),
-    state.searchIndex
+    state.searchIndex,
+    { by: state.speciesSortBy, dir: state.speciesSortDir }
   );
   
   if (!rankings.length) {
@@ -895,11 +903,12 @@ async function renderSpeciesResults() {
     ranking.perSpeciesStats.forEach((stats, i) => {
       const speciesColor = targetList[i].color || "#000";
       evidenceText += `<span style="color:${speciesColor}; font-weight:bold;">${formatNumber(stats.count)}</span> `;
+      evidenceText += `(<span style="color:${speciesColor};">${formatNumber(stats.days)}d</span>) `;
     });
     
-    button.append(node("span", "result-meta", `${dimension} · Counts: `));
+    button.append(node("span", "result-meta", `${dimension} · Counts (Days): `));
     const evidenceSpan = document.createElement("span");
-    evidenceSpan.innerHTML = evidenceText;
+    evidenceSpan.innerHTML = evidenceText.trim();
     button.lastChild.append(evidenceSpan);
     
     button.addEventListener("click", () => selectTrail(ranking.trail.id));
@@ -1838,6 +1847,10 @@ function resetFilters() {
   state.trailQuery = "";
   state.speciesQuery = "";
   state.selectedSpeciesList = [];
+  state.speciesSortBy = "days";
+  state.speciesSortDir = "desc";
+  if (elements.speciesSortBy) elements.speciesSortBy.value = "days";
+  if (elements.speciesSortDir) elements.speciesSortDir.textContent = "⬇️";
   state.selectedTrailId = null;
   state.loadedSelection = null;
   state.placeSearchRequest += 1;
@@ -2107,6 +2120,21 @@ function bindEvents() {
     }, 140);
   });
   
+  if (elements.speciesSortBy) {
+    elements.speciesSortBy.addEventListener("change", (e) => {
+      state.speciesSortBy = e.target.value;
+      void renderSpeciesResults();
+    });
+  }
+
+  if (elements.speciesSortDir) {
+    elements.speciesSortDir.addEventListener("click", () => {
+      state.speciesSortDir = state.speciesSortDir === "desc" ? "asc" : "desc";
+      elements.speciesSortDir.textContent = state.speciesSortDir === "desc" ? "⬇️" : "⬆️";
+      void renderSpeciesResults();
+    });
+  }
+
   // Close autocomplete when clicking outside
   document.addEventListener("click", (e) => {
     if (elements.speciesSearch && elements.speciesSuggestions) {

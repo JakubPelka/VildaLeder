@@ -52,6 +52,13 @@ export function countDated(entries, range) {
   );
 }
 
+export function daysDated(entries, range) {
+  return (entries || []).reduce(
+    (totalDays, [day, count]) => (count > 0 && day >= range.start && day <= range.end ? totalDays + 1 : totalDays),
+    0,
+  );
+}
+
 export function lastDated(entries, range) {
   return (entries || []).reduce(
     (latest, [day, count]) =>
@@ -236,8 +243,11 @@ export function indexedTrailStats(searchIndex, trailId, range) {
   };
 }
 
-export function rankTrailsForSpecies(trails, species, range, searchIndex) {
+export function rankTrailsForSpecies(trails, species, range, searchIndex, sortOptions = { by: "days", dir: "desc" }) {
   if (!species) return [];
+  const getSortValue = (result, by) => (by === "days" ? result.days : result.count);
+  const sortDirection = sortOptions.dir === "asc" ? -1 : 1;
+
   if (searchIndex) {
     const indexedSpecies = species.trails
       ? species
@@ -249,12 +259,13 @@ export function rankTrailsForSpecies(trails, species, range, searchIndex) {
       .map((trail) => ({
         trail,
         count: countDated(indexedSpecies.trails?.[trail.id], range),
+        days: daysDated(indexedSpecies.trails?.[trail.id], range),
         lastSeen: lastDated(indexedSpecies.trails?.[trail.id], range),
       }))
       .filter((result) => result.count > 0)
       .sort(
         (left, right) =>
-          right.count - left.count ||
+          (getSortValue(right, sortOptions.by) - getSortValue(left, sortOptions.by)) * sortDirection ||
           right.lastSeen.localeCompare(left.lastSeen) ||
           left.trail.name.localeCompare(right.trail.name),
       );
@@ -264,9 +275,11 @@ export function rankTrailsForSpecies(trails, species, range, searchIndex) {
       const observations = filterObservations(trail.observations, range).filter(
         (observation) => observation.taxonId === species.taxonId,
       );
+      const uniqueDays = new Set(observations.map(obs => obs.date)).size;
       return {
         trail,
         count: observations.length,
+        days: uniqueDays,
         lastSeen: observations.reduce(
           (latest, observation) => (observation.date > latest ? observation.date : latest),
           "",
@@ -277,19 +290,20 @@ export function rankTrailsForSpecies(trails, species, range, searchIndex) {
     .filter((result) => result.count > 0)
     .sort(
       (left, right) =>
-        right.count - left.count ||
+        (getSortValue(right, sortOptions.by) - getSortValue(left, sortOptions.by)) * sortDirection ||
         right.lastSeen.localeCompare(left.lastSeen) ||
         left.trail.name.localeCompare(right.trail.name),
     );
 }
 
-export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchIndex) {
-  if (!speciesList || speciesList.length === 0) return [];
-  if (speciesList.length === 1) {
-    const single = rankTrailsForSpecies(trails, speciesList[0], range, searchIndex);
+export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchIndex, sortOptions = { by: "days", dir: "desc" }) {
+  if (!speciesList || speciesList.length === 0) return   if (speciesList.length === 1) {
+    const single = rankTrailsForSpecies(trails, speciesList[0], range, searchIndex, sortOptions);
     return single.map(r => ({
       trail: r.trail,
       combinedScore: Math.log(1 + r.count),
+      combinedDaysScore: Math.log(1 + r.days),
+      lastSeen: r.lastSeen,
       perSpeciesStats: [r]
     }));
   }
@@ -303,10 +317,14 @@ export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchI
 
   if (indexedSpeciesList.some(s => !s)) return [];
 
+  const getSortValue = (result, by) => (by === "days" ? result.combinedDaysScore : result.combinedScore);
+  const sortDirection = sortOptions.dir === "asc" ? -1 : 1;
+
   return trails
     .map((trail) => {
       let allMatch = true;
       let logProduct = 1.0;
+      let logDaysProduct = 1.0;
       let latestGlobal = "";
       const perSpeciesStats = [];
 
@@ -314,17 +332,20 @@ export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchI
         const indexedSpecies = indexedSpeciesList[i];
         const species = speciesList[i];
         let count = 0;
+        let days = 0;
         let lastSeen = "";
         let observations = [];
 
         if (searchIndex) {
           count = countDated(indexedSpecies.trails?.[trail.id], range);
+          days = daysDated(indexedSpecies.trails?.[trail.id], range);
           lastSeen = lastDated(indexedSpecies.trails?.[trail.id], range);
         } else {
           observations = filterObservations(trail.observations, range).filter(
             (obs) => obs.taxonId === species.taxonId
           );
           count = observations.length;
+          days = new Set(observations.map(obs => obs.date)).size;
           lastSeen = observations.reduce(
             (latest, obs) => (obs.date > latest ? obs.date : latest),
             ""
@@ -336,24 +357,27 @@ export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchI
           break;
         }
         logProduct *= Math.log(1 + count);
+        logDaysProduct *= Math.log(1 + days);
         if (lastSeen > latestGlobal) latestGlobal = lastSeen;
-        perSpeciesStats.push({ count, lastSeen, observations });
+        perSpeciesStats.push({ count, days, lastSeen, observations });
       }
 
       if (!allMatch) return null;
 
       const combinedScore = Math.pow(logProduct, 1.0 / speciesList.length);
+      const combinedDaysScore = Math.pow(logDaysProduct, 1.0 / speciesList.length);
       return {
         trail,
         combinedScore,
+        combinedDaysScore,
         lastSeen: latestGlobal,
         perSpeciesStats
       };
     })
     .filter((result) => result !== null)
-    .sort((left, right) => 
-      right.combinedScore - left.combinedScore ||
+    .sort((left, right) =>
+      (getSortValue(right, sortOptions.by) - getSortValue(left, sortOptions.by)) * sortDirection ||
       right.lastSeen.localeCompare(left.lastSeen) ||
       left.trail.name.localeCompare(right.trail.name)
-    );
+    );  );
 }
