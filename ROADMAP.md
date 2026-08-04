@@ -56,6 +56,10 @@ The repository now contains a working vertical slice spanning parts of phases
   species intersecting the active trail/reserve buffers before one object is
   selected, while deliberately excluding observations outside tourist places;
 - English, Swedish, and Polish interface dictionaries;
+- a three-step search wizard that keeps criteria while replacing the form with
+  ranked results, plus a left off-canvas search drawer on mobile;
+- direct Artfakta links from grouped species rows when a Dyntaxa taxon ID is
+  available;
 - a place-type filter and a full reset control for filters, searches, selected
   feature, dates, Red List toggles, and map extent;
 - day, month, quarter, year, and inclusive custom date filters;
@@ -331,7 +335,8 @@ services.
   explicit per-feature coverage in PostGIS. Static pilot exports must include
   only complete windows; interrupted or partial ingestion must never look like
   a valid zero-observation result.
-- Add a GBIF enrichment adapter after the SOS baseline. Exclude the complete
+- Add the required GBIF occurrence-enrichment adapter after the SOS baseline.
+  Exclude the complete
   Artportalen GBIF dataset (`38b4c89f-584c-41bb-bd8f-cd1def33e92f`) at query or
   asynchronous-download time, because those records mirror the SOS source that
   is already canonical in VildaLeder.
