@@ -282,3 +282,78 @@ export function rankTrailsForSpecies(trails, species, range, searchIndex) {
         left.trail.name.localeCompare(right.trail.name),
     );
 }
+
+export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchIndex) {
+  if (!speciesList || speciesList.length === 0) return [];
+  if (speciesList.length === 1) {
+    const single = rankTrailsForSpecies(trails, speciesList[0], range, searchIndex);
+    return single.map(r => ({
+      trail: r.trail,
+      combinedScore: Math.log(1 + r.count),
+      perSpeciesStats: [r]
+    }));
+  }
+
+  // Pre-fetch indexed taxa for performance
+  const indexedSpeciesList = speciesList.map(species => {
+    return species.trails ? species : (searchIndex?.taxa || []).find(
+      (candidate) => String(candidate.taxonId) === String(species.taxonId)
+    );
+  });
+
+  if (indexedSpeciesList.some(s => !s)) return [];
+
+  return trails
+    .map((trail) => {
+      let allMatch = true;
+      let logProduct = 1.0;
+      let latestGlobal = "";
+      const perSpeciesStats = [];
+
+      for (let i = 0; i < indexedSpeciesList.length; i++) {
+        const indexedSpecies = indexedSpeciesList[i];
+        const species = speciesList[i];
+        let count = 0;
+        let lastSeen = "";
+        let observations = [];
+
+        if (searchIndex) {
+          count = countDated(indexedSpecies.trails?.[trail.id], range);
+          lastSeen = lastDated(indexedSpecies.trails?.[trail.id], range);
+        } else {
+          observations = filterObservations(trail.observations, range).filter(
+            (obs) => obs.taxonId === species.taxonId
+          );
+          count = observations.length;
+          lastSeen = observations.reduce(
+            (latest, obs) => (obs.date > latest ? obs.date : latest),
+            ""
+          );
+        }
+
+        if (count === 0) {
+          allMatch = false;
+          break;
+        }
+        logProduct *= Math.log(1 + count);
+        if (lastSeen > latestGlobal) latestGlobal = lastSeen;
+        perSpeciesStats.push({ count, lastSeen, observations });
+      }
+
+      if (!allMatch) return null;
+
+      const combinedScore = Math.pow(logProduct, 1.0 / speciesList.length);
+      return {
+        trail,
+        combinedScore,
+        lastSeen: latestGlobal,
+        perSpeciesStats
+      };
+    })
+    .filter((result) => result !== null)
+    .sort((left, right) => 
+      right.combinedScore - left.combinedScore ||
+      right.lastSeen.localeCompare(left.lastSeen) ||
+      left.trail.name.localeCompare(right.trail.name)
+    );
+}

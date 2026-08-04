@@ -97,15 +97,15 @@
               Optional. Leave this empty to explore trails and reserves by location.
             </p>
             <label class="search-label" for="species-search" data-i18n="findSpecies">Find a species</label>
+            <div id="selected-species-list" class="selected-species-list"></div>
             <input
               id="species-search"
               type="search"
-              list="species-suggestions"
               autocomplete="off"
               data-i18n-placeholder="speciesPlaceholder"
               placeholder="Havsörn or Haliaeetus albicilla"
             >
-            <datalist id="species-suggestions"></datalist>
+            <ul id="species-suggestions" class="custom-autocomplete"></ul>
             <p class="help-text" data-i18n="speciesLanguageNote">
               Search using Swedish, English, Polish, or scientific names when available.
             </p>

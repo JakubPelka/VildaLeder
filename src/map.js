@@ -342,6 +342,20 @@ function redlistColorExpression() {
   return expression;
 }
 
+export function setObservationColors(mapping) {
+  if (!mapReady || !map.getLayer(LAYER_OBSERVATIONS)) return;
+  if (!mapping) {
+    map.setPaintProperty(LAYER_OBSERVATIONS, "circle-color", redlistColorExpression());
+    return;
+  }
+  const expression = ["match", ["get", "taxonId"]];
+  Object.entries(mapping).forEach(([taxonId, color]) => {
+    expression.push(Number(taxonId), color);
+  });
+  expression.push(REDLIST_COLORS.unknown); // default
+  map.setPaintProperty(LAYER_OBSERVATIONS, "circle-color", expression);
+}
+
 function bindMapInteractions() {
   map.on("click", async (event) => {
     const features = map.queryRenderedFeatures(event.point, {

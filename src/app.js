@@ -8,6 +8,7 @@ import {
   observationFilesForRange,
   periodRange,
   rankTrailsForSpecies,
+  rankTrailsForMultipleSpecies,
   REDLIST_PRIORITY,
   resolveSpecies,
   speciesCatalog,
@@ -21,7 +22,8 @@ import {
   fitAllTrails,
   fitTrail,
   focusObservation,
-  initMap,
+  refreshMapSize,
+  setObservationColors,
   setObservations,
   setTrails,
   setUserLocation,
@@ -91,7 +93,7 @@ const state = {
   customEnd: "",
   trailQuery: "",
   speciesQuery: "",
-  selectedSpecies: null,
+  selectedSpeciesList: [],
   selectedTrailId: null,
   locationTracking: false,
   locationRequestPending: false,
@@ -142,6 +144,7 @@ const elements = {
   speciesPanel: document.querySelector("#species-panel"),
   trailSearch: document.querySelector("#trail-search"),
   speciesSearch: document.querySelector("#species-search"),
+  selectedSpeciesList: document.querySelector("#selected-species-list"),
   speciesSuggestions: document.querySelector("#species-suggestions"),
   speciesSummary: document.querySelector("#species-summary"),
   trailResults: document.querySelector("#trail-results"),
@@ -433,7 +436,7 @@ function validateLocationCriteria() {
 function showSearchResults({ validate = true } = {}) {
   if (validate && !validateLocationCriteria()) return false;
   state.speciesQuery = elements.speciesSearch.value;
-  const mode = state.speciesQuery.trim() ? "species" : "trail";
+  const mode = state.selectedSpeciesList.length > 0 || state.speciesQuery.trim() ? "species" : "trail";
   setMode(mode);
   state.searchView = "results";
   elements.criteriaView.hidden = true;
@@ -540,9 +543,23 @@ function populateSpeciesSuggestions(query = "") {
       return suggestions.length >= 15;
     });
   suggestions.forEach((label) => {
-      const option = document.createElement("option");
-      option.value = label;
+      const option = document.createElement("li");
+      option.textContent = label;
+      option.addEventListener("click", () => {
+        elements.speciesSearch.value = label;
+        // Trigger the input event to add the pill
+        elements.speciesSearch.dispatchEvent(new Event("input"));
+        elements.speciesSuggestions.replaceChildren();
+      });
       elements.speciesSuggestions.append(option);
+  });
+  
+  // Close suggestions when clicking outside
+  document.addEventListener("click", function closeSuggestions(e) {
+    if (!elements.speciesSearch.contains(e.target) && !elements.speciesSuggestions.contains(e.target)) {
+      elements.speciesSuggestions.replaceChildren();
+      document.removeEventListener("click", closeSuggestions);
+    }
   });
 }
 
@@ -806,66 +823,89 @@ async function renderSpeciesResults() {
   }
   elements.speciesResults.replaceChildren();
   elements.speciesSummary.replaceChildren();
-  state.selectedSpecies = null;
-  if (!state.speciesQuery.trim()) {
+  
+  if (state.selectedSpeciesList.length === 0 && !state.speciesQuery.trim()) {
     elements.speciesResults.append(node("p", "empty-state", t("noSpecies")));
     return;
   }
-  const allSpecies = speciesCatalog(state.searchIndex);
-  state.selectedSpecies = resolveSpecies(allSpecies, state.speciesQuery);
-  if (!state.selectedSpecies) {
-    elements.speciesResults.append(node("p", "empty-state", t("speciesNotFound")));
+  
+  let targetList = [...state.selectedSpeciesList];
+  if (state.speciesQuery.trim() && targetList.length === 0) {
+    const allSpecies = speciesCatalog(state.searchIndex);
+    const resolved = resolveSpecies(allSpecies, state.speciesQuery);
+    if (!resolved) {
+      elements.speciesResults.append(node("p", "empty-state", t("speciesNotFound")));
+      return;
+    }
+    targetList = [resolved];
+  }
+
+  if (targetList.length === 0) {
+    elements.speciesResults.append(node("p", "empty-state", t("noSpecies")));
     return;
   }
+
   if (!state.featureKind) {
-    elements.speciesSummary.textContent = t("rankedFor", {
-      species: localizedSpeciesLabel(state.selectedSpecies),
-    });
+    const names = targetList.map(localizedSpeciesLabel).join(" + ");
+    elements.speciesSummary.textContent = t("rankedFor", { species: names });
     elements.speciesResults.append(node("p", "empty-state", t("choosePlaceTypePrompt")));
     return;
   }
+
   const query = state.speciesQuery;
   elements.speciesResults.append(node("p", "empty-state", t("loadingRankings")));
+  
   try {
-    state.selectedSpecies = await speciesWithRankings(state.selectedSpecies);
+    targetList = await Promise.all(targetList.map(s => speciesWithRankings(s)));
   } catch (error) {
     if (request !== state.speciesRankingRequest) return;
     console.error(error);
     elements.speciesResults.replaceChildren(node("p", "empty-state error-text", t("rankingLoadError")));
     return;
   }
-  if (request !== state.speciesRankingRequest || query !== state.speciesQuery) return;
+  
+  if (request !== state.speciesRankingRequest || (targetList.length === 0 && query !== state.speciesQuery)) return;
+  
   elements.speciesResults.replaceChildren();
-  elements.speciesSummary.textContent = t("rankedFor", {
-    species: localizedSpeciesLabel(state.selectedSpecies),
-  });
-  const rankings = rankTrailsForSpecies(
+  const names = targetList.map(localizedSpeciesLabel).join(" + ");
+  elements.speciesSummary.textContent = t("rankedFor", { species: names });
+  
+  const rankings = rankTrailsForMultipleSpecies(
     areaTrails(),
-    state.selectedSpecies,
+    targetList,
     currentRange(),
-    state.searchIndex,
+    state.searchIndex
   );
+  
   if (!rankings.length) {
     elements.speciesResults.append(node("p", "empty-state", t("noObservations")));
     return;
   }
+  
   rankings.forEach((ranking, index) => {
     const item = node("div", "species-result-item");
     const button = node("button", "result-card");
     button.type = "button";
     button.classList.toggle("is-selected", ranking.trail.id === state.selectedTrailId);
-    const title = node("span", "result-title", `${index + 1}. ${ranking.trail.name}`);
+    
+    const titleText = `${index + 1}. ${ranking.trail.name} (Score: ${ranking.combinedScore.toFixed(2)})`;
+    const title = node("span", "result-title", titleText);
     title.prepend(featureKindBadge(ranking.trail));
     button.append(title);
-    button.append(
-      node(
-        "span",
-        "result-meta",
-        `${t("observations", { count: formatNumber(ranking.count) })} · ${t("lastSeen", {
-          date: formatDate(ranking.lastSeen),
-        })}`,
-      ),
-    );
+    
+    const dimension = featureDimension(ranking.trail);
+    let evidenceText = "";
+    
+    ranking.perSpeciesStats.forEach((stats, i) => {
+      const speciesColor = targetList[i].color || "#000";
+      evidenceText += `<span style="color:${speciesColor}; font-weight:bold;">${formatNumber(stats.count)}</span> `;
+    });
+    
+    button.append(node("span", "result-meta", `${dimension} · Counts: `));
+    const evidenceSpan = document.createElement("span");
+    evidenceSpan.innerHTML = evidenceText;
+    button.lastChild.append(evidenceSpan);
+    
     button.addEventListener("click", () => selectTrail(ranking.trail.id));
     item.append(button);
     if (state.mode === "species" && ranking.trail.id === state.selectedTrailId) {
@@ -969,42 +1009,42 @@ function expandSkandobsObservation(record) {
 }
 
 async function areaSpeciesObservations() {
-  if (!state.selectedSpecies || !state.skandobs) return [];
-  const selectedTaxonId = String(state.selectedSpecies.taxonId);
+  if (!state.selectedSpeciesList.length || !state.skandobs) return [];
   const range = currentRange();
   const allowedFeatureIndexes = new Set(
     areaTrails()
       .map((feature) => state.speciesPointFeatureIndex.get(feature.id))
       .filter((index) => index !== undefined),
   );
-  const bucketFiles = state.selectedSpecies.pointBucket
-    ? state.searchIndex.speciesObservationFiles?.[state.selectedSpecies.pointBucket] || []
-    : [];
-  const files = observationFilesForRange({ observationFiles: bucketFiles }, range);
-  const partitions = await Promise.all(files.map(loadPartition));
-  const sosObservations = partitions
-    .flatMap((partition) => (partition.records || []).map(expandObservation))
-    .filter((observation) => String(observation.taxonId) === selectedTaxonId)
-    .filter((observation) =>
-      observation.featureIndexes.some((index) => allowedFeatureIndexes.has(index)),
-    );
-  const observationIds = new Set();
-  areaTrails().forEach((feature) => {
-    (state.skandobs.matches?.[feature.id] || []).forEach((observationId) =>
-      observationIds.add(observationId),
-    );
-  });
-  const skandobsObservations = [...observationIds]
-      .map((observationId) => state.skandobsRecordById.get(observationId))
-      .filter(Boolean)
-      .filter(
-        (record) => String(record.taxonId) === selectedTaxonId,
-      )
-      .map(expandSkandobsObservation);
-  return filterObservations(
-    [...sosObservations, ...skandobsObservations],
-    range,
-  );
+  
+  let allObservations = [];
+  for (const species of state.selectedSpeciesList) {
+    const selectedTaxonId = String(species.taxonId);
+    const bucketFiles = species.pointBucket
+      ? state.searchIndex.speciesObservationFiles?.[species.pointBucket] || []
+      : [];
+    const files = observationFilesForRange({ observationFiles: bucketFiles }, range);
+    const partitions = await Promise.all(files.map(loadPartition));
+    const sosObservations = partitions
+      .flatMap((partition) => (partition.records || []).map(expandObservation))
+      .filter((observation) => String(observation.taxonId) === selectedTaxonId)
+      .filter((observation) =>
+        observation.featureIndexes.some((index) => allowedFeatureIndexes.has(index)),
+      );
+    const observationIds = new Set();
+    areaTrails().forEach((feature) => {
+      (state.skandobs.matches?.[feature.id] || []).forEach((observationId) =>
+        observationIds.add(observationId),
+      );
+    });
+    const skandobsObservations = [...observationIds]
+        .map((observationId) => state.skandobsRecordById.get(observationId))
+        .filter(Boolean)
+        .filter((record) => String(record.taxonId) === selectedTaxonId)
+        .map(expandSkandobsObservation);
+    allObservations.push(...sosObservations, ...skandobsObservations);
+  }
+  return filterObservations(allObservations, range);
 }
 
 async function renderAreaSpeciesObservations(request) {
@@ -1012,6 +1052,13 @@ async function renderAreaSpeciesObservations(request) {
   setObservationTableRows([]);
   renderRedlistFilters([]);
   elements.mapObservationSummary.textContent = t("loadingSpeciesMap");
+  
+  if (!state.selectedSpeciesList.length) {
+    setObservations([]);
+    renderMapObservationSummary(null, 0);
+    return;
+  }
+  
   let observations;
   try {
     observations = await areaSpeciesObservations();
@@ -1023,10 +1070,18 @@ async function renderAreaSpeciesObservations(request) {
   }
   if (request !== state.detailsRequest) return;
   renderRedlistFilters(observations);
+  
   const visibleObservations = observations.filter(
     (observation) =>
       !state.disabledRedlistCategories.has(observation.redlistCategory || "unknown"),
   );
+  
+  const colorMap = {};
+  state.selectedSpeciesList.forEach(s => {
+    if (s.color) colorMap[s.taxonId] = s.color;
+  });
+  setObservationColors(colorMap);
+  
   const mappedObservationCount = setObservations(visibleObservations) ?? 0;
   setObservationTableRows([]);
   renderMapObservationSummary(null, mappedObservationCount);
@@ -1045,9 +1100,10 @@ async function renderTrailDetails() {
   elements.trailDetails.replaceChildren();
   if (!trail) {
     elements.trailDetails.append(node("p", "empty-state", t("selectTrail")));
-    if (state.mode === "species" && state.selectedSpecies && state.featureKind) {
+    if (state.mode === "species" && state.selectedSpeciesList.length > 0 && state.featureKind) {
       await renderAreaSpeciesObservations(request);
     } else {
+      setObservationColors(null);
       setObservations([]);
       setObservationTableRows([]);
       renderRedlistFilters([]);
@@ -1056,6 +1112,7 @@ async function renderTrailDetails() {
     return;
   }
   if (!trail.observationCoverage) {
+    setObservationColors(null);
     setObservations([]);
     setObservationTableRows([]);
     renderRedlistFilters([]);
@@ -1071,6 +1128,7 @@ async function renderTrailDetails() {
     return;
   }
 
+  setObservationColors(null);
   setObservations([]);
   setObservationTableRows([]);
   renderRedlistFilters([]);
@@ -1093,8 +1151,7 @@ function renderResolvedTrailDetails(trail, observations) {
   const mapObservations = state.mode === "species"
     ? observations.filter(
         (observation) =>
-          state.selectedSpecies &&
-          String(observation.taxonId) === String(state.selectedSpecies.taxonId),
+          state.selectedSpeciesList.some(s => String(observation.taxonId) === String(s.taxonId))
       )
     : observations;
   renderRedlistFilters(mapObservations);
@@ -1102,6 +1159,17 @@ function renderResolvedTrailDetails(trail, observations) {
     (observation) =>
       !state.disabledRedlistCategories.has(observation.redlistCategory || "unknown"),
   );
+  
+  if (state.mode === "species" && state.selectedSpeciesList.length > 0) {
+    const colorMap = {};
+    state.selectedSpeciesList.forEach(s => {
+      if (s.color) colorMap[s.taxonId] = s.color;
+    });
+    setObservationColors(colorMap);
+  } else {
+    setObservationColors(null);
+  }
+  
   const mappedObservationCount = setObservations(visibleMapObservations) ?? 0;
   setObservationTableRows(visibleMapObservations);
   renderMapObservationSummary(trail, mappedObservationCount);
@@ -1771,11 +1839,13 @@ function resetFilters() {
   state.customEnd = state.catalog.meta.windowEnd;
   state.trailQuery = "";
   state.speciesQuery = "";
-  state.selectedSpecies = null;
+  state.selectedSpeciesList = [];
   state.selectedTrailId = null;
   state.loadedSelection = null;
   state.placeSearchRequest += 1;
   state.disabledRedlistCategories.clear();
+  if (elements.selectedSpeciesList) elements.selectedSpeciesList.replaceChildren();
+  if (elements.speciesSearch) elements.speciesSearch.style.display = "";
   elements.featureKind.value = "";
   elements.localitySearch.value = "";
   elements.localitySearchResults.replaceChildren();
@@ -2020,6 +2090,17 @@ function bindEvents() {
   });
   elements.speciesSearch.addEventListener("input", () => {
     state.speciesQuery = elements.speciesSearch.value;
+    const allSpecies = speciesCatalog(state.searchIndex);
+    const resolved = resolveSpecies(allSpecies, state.speciesQuery);
+    
+    // Auto-select exact match species pill logic
+    if (resolved && state.selectedSpeciesList.length < 3 && !state.selectedSpeciesList.some(s => s.taxonId === resolved.taxonId)) {
+      state.selectedSpeciesList.push(resolved);
+      elements.speciesSearch.value = "";
+      state.speciesQuery = "";
+      renderSelectedSpeciesPills();
+    }
+    
     populateSpeciesSuggestions(state.speciesQuery);
     window.clearTimeout(state.speciesSearchTimer);
     state.speciesSearchTimer = window.setTimeout(() => {
@@ -2028,6 +2109,37 @@ function bindEvents() {
     }, 140);
   });
   window.addEventListener("resize", syncSidebarState);
+}
+
+function renderSelectedSpeciesPills() {
+  if (!elements.selectedSpeciesList) return;
+  elements.selectedSpeciesList.replaceChildren();
+  const colors = ["#e41a1c", "#377eb8", "#4daf4a"];
+  state.selectedSpeciesList.forEach((species, index) => {
+    const pill = node("div", "species-pill");
+    const dot = node("span", "species-color-dot");
+    const color = colors[index % colors.length];
+    dot.style.backgroundColor = color;
+    species.color = color;
+    pill.append(dot);
+    pill.append(document.createTextNode(localizedSpeciesLabel(species)));
+    const removeBtn = node("button");
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      state.selectedSpeciesList.splice(index, 1);
+      renderSelectedSpeciesPills();
+      void renderSpeciesResults();
+      void renderTrailDetails();
+    });
+    pill.append(removeBtn);
+    elements.selectedSpeciesList.append(pill);
+  });
+  
+  if (state.selectedSpeciesList.length >= 3) {
+    elements.speciesSearch.style.display = "none";
+  } else {
+    elements.speciesSearch.style.display = "";
+  }
 }
 
 async function loadJson(path, label) {
