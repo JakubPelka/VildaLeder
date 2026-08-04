@@ -109,8 +109,8 @@ function disableRotation() {
 function addDataLayers() {
   map.addSource(SOURCE_USER_LOCATION, { type: "geojson", data: emptyFeatureCollection() });
   map.addSource(SOURCE_SEARCHED_PLACE, { type: "geojson", data: emptyFeatureCollection() });
-  map.addSource(SOURCE_CORRIDORS, { type: "geojson", data: emptyFeatureCollection() });
-  map.addSource(SOURCE_TRAILS, { type: "geojson", data: emptyFeatureCollection() });
+  map.addSource(SOURCE_CORRIDORS, { type: "geojson", data: emptyFeatureCollection(), promoteId: "id" });
+  map.addSource(SOURCE_TRAILS, { type: "geojson", data: emptyFeatureCollection(), promoteId: "id" });
   map.addSource(SOURCE_OBSERVATIONS, {
     type: "geojson",
     data: emptyFeatureCollection(),
@@ -462,6 +462,7 @@ export function setTrails(trails, visibleTrailIds, selectedTrailId) {
   if (!mapReady) return;
   const visible = new Set(visibleTrailIds);
   const properties = (trail) => ({
+    id: trail.id,
     trailId: trail.id,
     name: trail.name,
     featureKind: trail.featureKind || "trail",

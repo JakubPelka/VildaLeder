@@ -98,14 +98,16 @@
             </p>
             <label class="search-label" for="species-search" data-i18n="findSpecies">Find a species</label>
             <div id="selected-species-list" class="selected-species-list"></div>
-            <input
-              id="species-search"
-              type="search"
-              autocomplete="off"
-              data-i18n-placeholder="speciesPlaceholder"
-              placeholder="Havsörn or Haliaeetus albicilla"
-            >
-            <ul id="species-suggestions" class="custom-autocomplete"></ul>
+            <div style="position: relative;">
+              <input
+                id="species-search"
+                type="search"
+                autocomplete="off"
+                data-i18n-placeholder="speciesPlaceholder"
+                placeholder="Havsörn or Haliaeetus albicilla"
+              >
+              <ul id="species-suggestions" class="custom-autocomplete"></ul>
+            </div>
             <p class="help-text" data-i18n="speciesLanguageNote">
               Search using Swedish, English, Polish, or scientific names when available.
             </p>

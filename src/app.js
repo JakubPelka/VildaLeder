@@ -554,14 +554,6 @@ function populateSpeciesSuggestions(query = "") {
       });
       elements.speciesSuggestions.append(option);
   });
-  
-  // Close suggestions when clicking outside
-  document.addEventListener("click", function closeSuggestions(e) {
-    if (!elements.speciesSearch.contains(e.target) && !elements.speciesSuggestions.contains(e.target)) {
-      elements.speciesSuggestions.replaceChildren();
-      document.removeEventListener("click", closeSuggestions);
-    }
-  });
 }
 
 function placeSearchCacheKey(query) {
@@ -2113,6 +2105,16 @@ function bindEvents() {
       void renderTrailDetails();
     }, 140);
   });
+  
+  // Close autocomplete when clicking outside
+  document.addEventListener("click", (e) => {
+    if (elements.speciesSearch && elements.speciesSuggestions) {
+      if (!elements.speciesSearch.contains(e.target) && !elements.speciesSuggestions.contains(e.target)) {
+        elements.speciesSuggestions.replaceChildren();
+      }
+    }
+  });
+  
   window.addEventListener("resize", syncSidebarState);
 }
 
