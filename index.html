@@ -10,7 +10,7 @@
     <title>VildaLeder</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="styles.css?v=20260803-map-state-v15">
+    <link rel="stylesheet" href="styles.css?v=20260804-place-search-v16">
   </head>
   <body>
     <section
@@ -96,6 +96,30 @@
 
         <section class="filter-block" aria-labelledby="area-heading">
           <h2 id="area-heading" data-i18n="area">Area</h2>
+          <form id="locality-search-form" class="locality-search" role="search">
+            <label class="search-label" for="locality-search" data-i18n="findLocality">Find a place on the map</label>
+            <div class="locality-search-controls">
+              <input
+                id="locality-search"
+                type="search"
+                minlength="2"
+                maxlength="120"
+                required
+                autocomplete="off"
+                data-i18n-placeholder="localityPlaceholder"
+                placeholder="Town, village, or place name"
+              >
+              <button id="locality-search-submit" type="submit" data-i18n="searchMap" disabled>
+                Search map
+              </button>
+            </div>
+            <p id="locality-search-status" class="help-text" role="status" aria-live="polite" hidden></p>
+            <div id="locality-search-results" class="locality-search-results" hidden></div>
+            <p class="help-text locality-search-attribution">
+              <span data-i18n="placeSearchAttribution">Place search:</span>
+              <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noreferrer">Nominatim / OpenStreetMap</a>
+            </p>
+          </form>
           <label>
             <span data-i18n="placeType">Place type</span>
             <select id="feature-kind">
@@ -253,6 +277,9 @@
                   <th scope="col" aria-sort="none">
                     <button class="observation-sort-button" type="button" data-sort="species" data-i18n="observationSpecies">Species</button>
                   </th>
+                  <th scope="col" aria-sort="none">
+                    <button class="observation-sort-button" type="button" data-sort="count" data-i18n="observationCountColumn">Observations</button>
+                  </th>
                   <th scope="col" aria-sort="descending">
                     <button class="observation-sort-button" type="button" data-sort="date" data-direction="desc" data-i18n="lastSeenColumn">Last seen</button>
                   </th>
@@ -290,6 +317,6 @@
     </footer>
 
     <script src="https://unpkg.com/maplibre-gl@5.11.0/dist/maplibre-gl.js"></script>
-    <script type="module" src="src/app.js?v=20260803-map-state-v15"></script>
+    <script type="module" src="src/app.js?v=20260804-place-search-v16"></script>
   </body>
 </html>

@@ -197,6 +197,36 @@ class StaticSiteTests(unittest.TestCase):
         )[1].split('elements.county.addEventListener("change"', 1)[0]
         self.assertNotIn("fitCurrentAreaAfterRender", feature_kind_handler)
 
+    def test_issue_23_searches_named_places_on_submit_without_autocomplete(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        map_source = (ROOT / "src" / "map.js").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn('id="locality-search-form"', html)
+        self.assertIn('id="locality-search-results"', html)
+        self.assertIn('elements.localitySearchForm.addEventListener("submit", searchLocality)', app)
+        self.assertNotIn('elements.localitySearch.addEventListener("input"', app)
+        self.assertIn('GEOCODER_ENDPOINT = "https://nominatim.openstreetmap.org/search"', app)
+        self.assertIn('countrycodes: "se"', app)
+        self.assertIn('limit: "5"', app)
+        self.assertIn("PLACE_SEARCH_MIN_INTERVAL_MS = 1_100", app)
+        self.assertIn("PLACE_SEARCH_CACHE_MAX_AGE_MS", app)
+        self.assertIn("showSearchedPlace", app)
+        self.assertIn('SOURCE_SEARCHED_PLACE = "searched-place"', map_source)
+        self.assertIn("clearSearchedPlace", map_source)
+        self.assertIn("Nominatim usage policy", readme)
+
+    def test_issue_24_sorts_grouped_observations_by_count(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        app = (ROOT / "src" / "app.js").read_text(encoding="utf-8")
+        translations = (ROOT / "src" / "i18n.js").read_text(encoding="utf-8")
+        self.assertIn('data-sort="count"', html)
+        self.assertIn('if (key === "count") return Number(taxon.count || 0)', app)
+        self.assertIn('["date", "count"].includes(key) ? "desc" : "asc"', app)
+        self.assertIn('node("td", "observation-count", formatNumber(taxon.count))', app)
+        self.assertIn("detailsCell.colSpan = 5", app)
+        self.assertGreaterEqual(translations.count("observationCountColumn"), 3)
+
     def test_refresh_is_owned_by_the_local_server_without_embedding_a_key(self):
         workflow = (ROOT / ".github" / "workflows" / "refresh-data.yml").read_text(
             encoding="utf-8"

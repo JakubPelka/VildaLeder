@@ -308,6 +308,71 @@ label > span,
   margin-top: 0.65rem;
 }
 
+.locality-search {
+  margin-bottom: 0.85rem;
+}
+
+.locality-search-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+
+.locality-search-controls button {
+  min-height: 2.6rem;
+  padding: 0.5rem 0.7rem;
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.locality-search-controls button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.locality-search-results {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.locality-search-result {
+  display: grid;
+  width: 100%;
+  gap: 0.15rem;
+  padding: 0.55rem 0.65rem;
+  border-color: var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.locality-search-result:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.locality-result-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.locality-result-kind,
+.locality-search-attribution {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.locality-result-kind {
+  text-transform: capitalize;
+}
+
 .help-text {
   margin: 0.45rem 0 0;
   color: var(--muted);
@@ -939,7 +1004,7 @@ body.is-resizing-map-table {
 
 .observation-table-panel table {
   width: 100%;
-  min-width: 620px;
+  min-width: 680px;
   border-collapse: collapse;
   font-size: 0.8rem;
 }
@@ -1013,7 +1078,7 @@ body.is-resizing-map-table {
 .observation-group-toggle {
   display: grid;
   width: 100%;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 0.25rem 0.5rem;
   padding: 0;
@@ -1042,10 +1107,9 @@ body.is-resizing-map-table {
   font-weight: 800;
 }
 
-.observation-group-count {
-  color: var(--muted);
-  font-size: 0.72rem;
-  white-space: nowrap;
+.observation-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
 }
 
 .observation-details-row td {

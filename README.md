@@ -106,6 +106,13 @@ Polish; place-first and species-first search; an explicit map-layer choice plus
 optional county/municipality filters; map selection; interactive Red List classes; and day, 30-day, 90-day,
 365-day, or custom date ranges within the ten-year snapshot. Counts are computed
 from daily aggregates and therefore change with every selected date range.
+The area panel also has a Sweden-only place-name lookup for towns, villages,
+hamlets, and other named OSM features. It sends a request only after an explicit
+form submission, never as autocomplete, limits results to five, throttles
+uncached requests to less than one per second per browser, and caches small
+results locally for 30 days. The Halland pilot uses the public Nominatim service
+under its usage policy; national or commercial traffic must move behind a
+switchable cached proxy or a self-hosted/contracted geocoder.
 The custom search range is capped at the most recent ten years. Overlapping
 observation coordinates are clustered with their record count. The sortable
 panel below the map groups the selected place's observations into one row per
@@ -545,6 +552,8 @@ path from data discovery to web MVP and native mobile applications.
 - [OpenStreetMap hiking route tagging](https://wiki.openstreetmap.org/wiki/Tag:route%3Dhiking)
 - [OpenStreetMap copyright and attribution](https://www.openstreetmap.org/copyright)
 - [Overpass API documentation and public-instance policy](https://wiki.openstreetmap.org/wiki/Overpass_API)
+- [Nominatim search API](https://nominatim.org/release-docs/latest/api/Search/)
+- [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/)
 - [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
 - [SLU overview of open data and APIs](https://www.slu.se/artdatabanken/rapportering-och-fynd/oppna-data-och-apier/om-slu-artdatabankens-apier)
 - [SLU Species Observation System API capabilities](https://www.slu.se/artdatabanken/rapportering-och-fynd/oppna-data-och-apier/om-slu-artdatabankens-apier/api-for-artobservationer-fran-flera-dataset/)
