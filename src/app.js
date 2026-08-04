@@ -13,9 +13,10 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260803-map-state-v15";
-import { translations, translator } from "./i18n.js?v=20260803-map-state-v15";
+} from "./core.js?v=20260804-place-search-v16";
+import { translations, translator } from "./i18n.js?v=20260804-place-search-v16";
 import {
+  clearSearchedPlace,
   clearUserLocation,
   fitAllTrails,
   fitTrail,
@@ -26,7 +27,8 @@ import {
   setUserLocation,
   showFeaturePopup,
   showObservationPopup,
-} from "./map.js?v=20260803-map-state-v15";
+  showSearchedPlace,
+} from "./map.js?v=20260804-place-search-v16";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -39,6 +41,10 @@ const PERIOD_PREFERENCE_KEY = "vildaleder-period";
 const CUSTOM_START_PREFERENCE_KEY = "vildaleder-custom-start";
 const CUSTOM_END_PREFERENCE_KEY = "vildaleder-custom-end";
 const FEATURE_KIND_PREFERENCE_KEY = "vildaleder-feature-kind";
+const PLACE_SEARCH_CACHE_PREFIX = "vildaleder-place-search:";
+const PLACE_SEARCH_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1_000;
+const PLACE_SEARCH_MIN_INTERVAL_MS = 1_100;
+const GEOCODER_ENDPOINT = "https://nominatim.openstreetmap.org/search";
 const PERIOD_VALUES = new Set(["day", "month", "quarter", "year", "custom"]);
 const FEATURE_KIND_VALUES = new Set([
   "",
@@ -73,6 +79,8 @@ const state = {
   speciesSearchEntries: [],
   speciesSearchTimer: null,
   speciesRankingRequest: 0,
+  placeSearchRequest: 0,
+  lastPlaceSearchAt: 0,
   loadedSelection: null,
   detailsRequest: 0,
   disabledRedlistCategories: new Set(),
@@ -108,6 +116,11 @@ const elements = {
   locateUser: document.querySelector("#locate-user"),
   locationStatus: document.querySelector("#location-status"),
   resetFilters: document.querySelector("#reset-filters"),
+  localitySearchForm: document.querySelector("#locality-search-form"),
+  localitySearch: document.querySelector("#locality-search"),
+  localitySearchSubmit: document.querySelector("#locality-search-submit"),
+  localitySearchStatus: document.querySelector("#locality-search-status"),
+  localitySearchResults: document.querySelector("#locality-search-results"),
   language: document.querySelector("#language"),
   featureKind: document.querySelector("#feature-kind"),
   county: document.querySelector("#county"),
@@ -434,6 +447,122 @@ function populateSpeciesSuggestions(query = "") {
       option.value = label;
       elements.speciesSuggestions.append(option);
   });
+}
+
+function placeSearchCacheKey(query) {
+  return `${PLACE_SEARCH_CACHE_PREFIX}${state.language}:${encodeURIComponent(query.trim().toLocaleLowerCase())}`;
+}
+
+function cachedPlaceSearch(query) {
+  const key = placeSearchCacheKey(query);
+  try {
+    const cached = JSON.parse(localStorage.getItem(key));
+    if (
+      cached &&
+      Array.isArray(cached.results) &&
+      Date.now() - Number(cached.cachedAt || 0) <= PLACE_SEARCH_CACHE_MAX_AGE_MS
+    ) {
+      return cached.results;
+    }
+    localStorage.removeItem(key);
+  } catch {
+    localStorage.removeItem(key);
+  }
+  return null;
+}
+
+function cachePlaceSearch(query, results) {
+  try {
+    localStorage.setItem(
+      placeSearchCacheKey(query),
+      JSON.stringify({ cachedAt: Date.now(), results }),
+    );
+  } catch {
+    // Search still works when browser storage is unavailable or full.
+  }
+}
+
+function setPlaceSearchStatus(key = "") {
+  elements.localitySearchStatus.hidden = !key;
+  elements.localitySearchStatus.textContent = key ? t(key) : "";
+}
+
+function renderPlaceSearchResults(results) {
+  elements.localitySearchResults.replaceChildren();
+  elements.localitySearchResults.hidden = results.length === 0;
+  if (!results.length) {
+    setPlaceSearchStatus("noPlacesFound");
+    return;
+  }
+  setPlaceSearchStatus();
+  results.forEach((result) => {
+    const button = node("button", "locality-search-result");
+    button.type = "button";
+    button.append(node("span", "locality-result-name", result.display_name));
+    const kind = result.addresstype || result.type;
+    if (kind) button.append(node("span", "locality-result-kind", kind.replaceAll("_", " ")));
+    button.addEventListener("click", () => {
+      showSearchedPlace({
+        name: result.display_name,
+        latitude: Number(result.lat),
+        longitude: Number(result.lon),
+        boundingBox: result.boundingbox,
+      });
+    });
+    elements.localitySearchResults.append(button);
+  });
+}
+
+async function searchLocality(event) {
+  event.preventDefault();
+  const query = elements.localitySearch.value.trim();
+  if (query.length < 2 || !state.appReady) return;
+  const request = ++state.placeSearchRequest;
+  elements.localitySearchSubmit.disabled = true;
+  elements.localitySearchResults.hidden = true;
+  setPlaceSearchStatus("searchingPlaces");
+  try {
+    let results = cachedPlaceSearch(query);
+    if (!results) {
+      const waitMs = Math.max(
+        0,
+        PLACE_SEARCH_MIN_INTERVAL_MS - (Date.now() - state.lastPlaceSearchAt),
+      );
+      if (waitMs) await new Promise((resolve) => window.setTimeout(resolve, waitMs));
+      state.lastPlaceSearchAt = Date.now();
+      const parameters = new URLSearchParams({
+        q: query,
+        format: "jsonv2",
+        countrycodes: "se",
+        addressdetails: "1",
+        limit: "5",
+        "accept-language": state.language,
+      });
+      const response = await fetch(`${GEOCODER_ENDPOINT}?${parameters}`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error(`Place search failed: ${response.status}`);
+      results = (await response.json())
+        .filter(
+          (result) =>
+            Number.isFinite(Number(result.lat)) && Number.isFinite(Number(result.lon)),
+        )
+        .slice(0, 5);
+      cachePlaceSearch(query, results);
+    }
+    if (request !== state.placeSearchRequest) return;
+    renderPlaceSearchResults(results);
+  } catch (error) {
+    if (request !== state.placeSearchRequest) return;
+    console.error(error);
+    elements.localitySearchResults.replaceChildren();
+    elements.localitySearchResults.hidden = true;
+    setPlaceSearchStatus("placeSearchError");
+  } finally {
+    if (request === state.placeSearchRequest) {
+      elements.localitySearchSubmit.disabled = !state.appReady;
+    }
+  }
 }
 
 function placeRankingGroup(feature) {
@@ -937,6 +1066,7 @@ function observationGroupSources(taxon) {
 
 function observationGroupSortValue(taxon, key) {
   if (key === "redlist") return REDLIST_PRIORITY[taxon.redlistCategory] ?? 99;
+  if (key === "count") return Number(taxon.count || 0);
   if (key === "species") {
     return taxon.vernacularName || taxon.scientificName || "";
   }
@@ -985,7 +1115,7 @@ function sortObservationTable(key) {
   } else {
     state.observationTableSort = {
       key,
-      direction: key === "date" ? "desc" : "asc",
+      direction: ["date", "count"].includes(key) ? "desc" : "asc",
     };
   }
   state.observationTablePage = 0;
@@ -1183,7 +1313,6 @@ function observationTaxonRows(taxon) {
   toggle.append(
     node("span", "observation-group-chevron", expanded ? "−" : "+"),
     node("span", "observation-species-name", label),
-    node("span", "observation-group-count", t("observations", { count: formatNumber(taxon.count) })),
   );
   if (taxon.scientificName && taxon.scientificName !== taxon.vernacularName) {
     toggle.append(node("span", "scientific-name", taxon.scientificName));
@@ -1194,6 +1323,7 @@ function observationTaxonRows(taxon) {
     renderObservationTable();
   });
   speciesCell.append(toggle);
+  const countCell = node("td", "observation-count", formatNumber(taxon.count));
   const dateCell = node("td", "", formatDate(taxon.lastSeen));
   const categoryCell = document.createElement("td");
   const category = taxon.redlistCategory || "unknown";
@@ -1205,12 +1335,12 @@ function observationTaxonRows(taxon) {
   badge.dataset.category = category;
   categoryCell.append(badge);
   const sourceCell = node("td", "", observationGroupSources(taxon).join(" · ") || "—");
-  row.append(speciesCell, dateCell, categoryCell, sourceCell);
+  row.append(speciesCell, countCell, dateCell, categoryCell, sourceCell);
   if (!expanded) return [row];
 
   const detailsRow = node("tr", "observation-details-row");
   const detailsCell = document.createElement("td");
-  detailsCell.colSpan = 4;
+  detailsCell.colSpan = 5;
   detailsCell.append(
     seasonalityPanel(taxon.observations, t("weeklySeasonalityFor", { species: label })),
     node("h3", "observation-record-heading", t("recentTaxonRecords")),
@@ -1522,8 +1652,15 @@ function resetFilters() {
   state.selectedSpecies = null;
   state.selectedTrailId = null;
   state.loadedSelection = null;
+  state.placeSearchRequest += 1;
   state.disabledRedlistCategories.clear();
   elements.featureKind.value = "";
+  elements.localitySearch.value = "";
+  elements.localitySearchResults.replaceChildren();
+  elements.localitySearchResults.hidden = true;
+  elements.localitySearchSubmit.disabled = !state.appReady;
+  setPlaceSearchStatus();
+  clearSearchedPlace();
   localStorage.removeItem(FEATURE_KIND_PREFERENCE_KEY);
   elements.period.value = "year";
   elements.customDates.hidden = true;
@@ -1687,6 +1824,7 @@ function bindEvents() {
     applyLanguage();
   });
   elements.locateUser.addEventListener("click", toggleLocationTracking);
+  elements.localitySearchForm.addEventListener("submit", searchLocality);
   elements.resetFilters.addEventListener("click", resetFilters);
   elements.modeTabs.forEach((tab) => tab.addEventListener("click", () => setMode(tab.dataset.mode)));
   elements.observationSortButtons.forEach((button) =>
@@ -1853,6 +1991,7 @@ async function start() {
     state.searchIndex = mergedSearchIndex(searchIndex, skandobs);
     state.appReady = true;
     updateLocationButton();
+    elements.localitySearchSubmit.disabled = false;
     state.speciesPointFeatureIndex = new Map(
       (searchIndex.speciesPointFeatureIds || []).map((featureId, index) => [featureId, index]),
     );

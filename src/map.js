@@ -2,6 +2,7 @@ const SOURCE_CORRIDORS = "trail-corridors";
 const SOURCE_TRAILS = "trails";
 const SOURCE_OBSERVATIONS = "observations";
 const SOURCE_USER_LOCATION = "user-location";
+const SOURCE_SEARCHED_PLACE = "searched-place";
 const LAYER_CORRIDORS = "trail-corridors-fill";
 const LAYER_CORRIDOR_OUTLINES = "trail-corridors-outline";
 const LAYER_RESERVES = "nature-reserves-fill";
@@ -13,6 +14,7 @@ const LAYER_OBSERVATION_CLUSTER_COUNT = "observations-cluster-count";
 const LAYER_OBSERVATIONS = "observations-circle";
 const LAYER_USER_ACCURACY = "user-location-accuracy";
 const LAYER_USER_LOCATION = "user-location-point";
+const LAYER_SEARCHED_PLACE = "searched-place-point";
 
 export const REDLIST_COLORS = Object.freeze({
   EX: "#3f0b0b",
@@ -34,6 +36,7 @@ let resizeObserver;
 let resizeTimer;
 let activePopup;
 let hoverPopup;
+let searchedPlacePopup;
 let observationByMarkerId = new Map();
 let callbacks = {};
 let pendingUserLocation = null;
@@ -105,6 +108,7 @@ function disableRotation() {
 
 function addDataLayers() {
   map.addSource(SOURCE_USER_LOCATION, { type: "geojson", data: emptyFeatureCollection() });
+  map.addSource(SOURCE_SEARCHED_PLACE, { type: "geojson", data: emptyFeatureCollection() });
   map.addSource(SOURCE_CORRIDORS, { type: "geojson", data: emptyFeatureCollection() });
   map.addSource(SOURCE_TRAILS, { type: "geojson", data: emptyFeatureCollection() });
   map.addSource(SOURCE_OBSERVATIONS, {
@@ -305,6 +309,17 @@ function addDataLayers() {
     },
   });
   map.addLayer({
+    id: LAYER_SEARCHED_PLACE,
+    type: "circle",
+    source: SOURCE_SEARCHED_PLACE,
+    paint: {
+      "circle-color": "#e2842c",
+      "circle-radius": 8,
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-width": 3,
+    },
+  });
+  map.addLayer({
     id: LAYER_USER_LOCATION,
     type: "circle",
     source: SOURCE_USER_LOCATION,
@@ -337,8 +352,19 @@ function bindMapInteractions() {
         LAYER_RESERVES,
         LAYER_NATIONAL_PARKS,
         LAYER_DESTINATIONS,
+        LAYER_SEARCHED_PLACE,
       ],
     });
+    const searchedPlaceFeature = features.find(
+      (feature) => feature.layer.id === LAYER_SEARCHED_PLACE,
+    );
+    if (searchedPlaceFeature) {
+      showSearchedPlacePopup(
+        searchedPlaceFeature.geometry.coordinates,
+        searchedPlaceFeature.properties.name,
+      );
+      return;
+    }
     const clusterFeature = features.find(
       (feature) => feature.layer.id === LAYER_OBSERVATION_CLUSTERS,
     );
@@ -374,6 +400,7 @@ function bindMapInteractions() {
     LAYER_RESERVES,
     LAYER_NATIONAL_PARKS,
     LAYER_DESTINATIONS,
+    LAYER_SEARCHED_PLACE,
   ].forEach((layerId) => {
     map.on("mouseenter", layerId, () => {
       map.getCanvas().style.cursor = "pointer";
@@ -492,6 +519,46 @@ export function focusObservation(observation) {
     center: [observation.longitude, observation.latitude],
     zoom: Math.max(map.getZoom(), Math.min(17, map.getMaxZoom())),
   });
+}
+
+function showSearchedPlacePopup(coordinates, name) {
+  searchedPlacePopup?.remove();
+  searchedPlacePopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false })
+    .setLngLat(coordinates)
+    .setText(name)
+    .addTo(map);
+}
+
+export function showSearchedPlace(result) {
+  if (!mapReady || !map) return;
+  const longitude = Number(result?.longitude);
+  const latitude = Number(result?.latitude);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return;
+  const name = String(result?.name || "");
+  map.getSource(SOURCE_SEARCHED_PLACE).setData({
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      properties: { name },
+      geometry: { type: "Point", coordinates: [longitude, latitude] },
+    }],
+  });
+  const boundingBox = (result.boundingBox || []).map(Number);
+  if (boundingBox.length === 4 && boundingBox.every(Number.isFinite)) {
+    const [south, north, west, east] = boundingBox;
+    map.fitBounds([[west, south], [east, north]], { padding: 55, maxZoom: 13 });
+  } else {
+    map.easeTo({ center: [longitude, latitude], zoom: 13 });
+  }
+  showSearchedPlacePopup([longitude, latitude], name);
+  forceSeveralMapRefreshes();
+}
+
+export function clearSearchedPlace() {
+  searchedPlacePopup?.remove();
+  searchedPlacePopup = null;
+  if (!mapReady || !map) return;
+  map.getSource(SOURCE_SEARCHED_PLACE).setData(emptyFeatureCollection());
 }
 
 function accuracyPolygon(longitude, latitude, accuracyMeters) {
@@ -619,6 +686,7 @@ export function getMapDebugState() {
   const firstObservationPoint = findClickableObservationPoint();
   const renderedClusters = renderedClusterDebug();
   const userLocationData = mapReady ? map.getSource(SOURCE_USER_LOCATION)._data : null;
+  const searchedPlaceData = mapReady ? map.getSource(SOURCE_SEARCHED_PLACE)._data : null;
   const userLocationPoint = userLocationData?.features?.find(
     (feature) => feature.geometry?.type === "Point",
   );
@@ -647,6 +715,7 @@ export function getMapDebugState() {
     zoom: map ? map.getZoom() : null,
     userLocationFeatures: userLocationData?.features?.length || 0,
     userLocation: userLocationPoint?.geometry?.coordinates || null,
+    searchedPlaceFeatures: searchedPlaceData?.features?.length || 0,
   };
 }
 
