@@ -103,6 +103,9 @@ const state = {
   locationRequestPending: false,
   locationHasFix: false,
   locationTimer: null,
+  favoriteTrails: new Set(JSON.parse(localStorage.getItem("vildaleder-favorite-trails") || "[]")),
+  favoriteSpecies: new Set(JSON.parse(localStorage.getItem("vildaleder-favorite-species") || "[]")),
+  lastVisit: localStorage.getItem("vildaleder-last-visit") || new Date().toISOString(),
   appReady: false,
 };
 
@@ -126,6 +129,13 @@ const elements = {
   backToCriteria: document.querySelector("#back-to-criteria"),
   newSearch: document.querySelector("#new-search"),
   openTutorial: document.querySelector("#open-tutorial"),
+  openFavorites: document.querySelector("#open-favorites"),
+  favoritesView: document.querySelector("#favorites-view"),
+  favoriteTrailsList: document.querySelector("#favorite-trails-list"),
+  favoriteSpeciesList: document.querySelector("#favorite-species-list"),
+  noFavoriteTrails: document.querySelector("#no-favorite-trails"),
+  noFavoriteSpecies: document.querySelector("#no-favorite-species"),
+  favoritesBadge: document.querySelector("#favorites-badge"),
   status: document.querySelector("#status"),
   locateUser: document.querySelector("#locate-user"),
   locationStatus: document.querySelector("#location-status"),
@@ -188,6 +198,32 @@ function node(tag, className, text) {
   if (className) element.className = className;
   if (text !== undefined) element.textContent = text;
   return element;
+}
+
+function buildStarButton(type, id) {
+  const btn = node("button", "star-btn");
+  btn.type = "button";
+  const isFav = type === "trail" ? state.favoriteTrails.has(id) : state.favoriteSpecies.has(String(id));
+  if (isFav) btn.classList.add("is-favorite");
+  btn.innerHTML = isFav ? "★" : "☆";
+  btn.setAttribute("aria-label", t("manageFavorites"));
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (type === "trail") {
+      if (state.favoriteTrails.has(id)) state.favoriteTrails.delete(id);
+      else state.favoriteTrails.add(id);
+      localStorage.setItem("vildaleder-favorite-trails", JSON.stringify([...state.favoriteTrails]));
+    } else {
+      const taxonId = String(id);
+      if (state.favoriteSpecies.has(taxonId)) state.favoriteSpecies.delete(taxonId);
+      else state.favoriteSpecies.add(taxonId);
+      localStorage.setItem("vildaleder-favorite-species", JSON.stringify([...state.favoriteSpecies]));
+    }
+    const currentlyFav = btn.classList.toggle("is-favorite");
+    btn.innerHTML = currentlyFav ? "★" : "☆";
+    renderFavoritesView();
+  });
+  return btn;
 }
 
 function formatDate(value) {
@@ -448,6 +484,7 @@ function showSearchResults({ validate = true } = {}) {
   state.searchView = "results";
   elements.criteriaView.hidden = true;
   elements.resultsView.hidden = false;
+  elements.favoritesView.hidden = true;
   elements.sidebar.scrollTo({ top: 0, behavior: "smooth" });
   if (state.catalog) renderAll();
   return true;
@@ -798,6 +835,9 @@ function renderTrailResults() {
     const button = node("button", "result-card");
     button.type = "button";
     button.classList.toggle("is-selected", trail.id === state.selectedTrailId);
+    
+    button.append(buildStarButton("trail", trail.id));
+    
     const title = node("span", "result-title", trail.name);
     title.prepend(featureKindBadge(trail));
     button.append(title);
@@ -850,7 +890,9 @@ async function renderSpeciesResults() {
   if (!state.featureKind) {
     const names = targetList.map(localizedSpeciesLabel).join(" + ");
     elements.speciesSummary.textContent = t("rankedFor", { species: names });
-    elements.speciesResults.append(node("p", "empty-state", t("choosePlaceTypePrompt")));
+    if (state.placeSearchRequest === 0) {
+      elements.speciesResults.append(node("p", "empty-state", t("choosePlaceTypePrompt")));
+    }
     return;
   }
 
@@ -891,6 +933,8 @@ async function renderSpeciesResults() {
     const button = node("button", "result-card");
     button.type = "button";
     button.classList.toggle("is-selected", ranking.trail.id === state.selectedTrailId);
+    
+    button.append(buildStarButton("trail", ranking.trail.id));
     
     const titleText = `${index + 1}. ${ranking.trail.name} (Score: ${ranking.combinedScore.toFixed(2)})`;
     const title = node("span", "result-title", titleText);
@@ -1207,7 +1251,7 @@ function renderResolvedTrailDetails(trail, observations) {
   const clearSelection = node("button", "clear-place-selection", t("clearPlaceSelection"));
   clearSelection.type = "button";
   clearSelection.addEventListener("click", clearTrailSelection);
-  links.append(osmLink, clearSelection);
+  links.append(osmLink, clearSelection, buildStarButton("trail", trail.id));
   appendLocationActions(links, trail);
   header.append(links);
   if (trail.description) header.append(node("p", "feature-description", trail.description));
@@ -1801,6 +1845,7 @@ function featurePopup(feature) {
     wrapper.append(link);
   }
   appendLocationActions(wrapper, feature);
+  wrapper.append(buildStarButton("trail", feature.id));
   return wrapper;
 }
 
@@ -2028,6 +2073,65 @@ function setMode(mode) {
   void renderTrailDetails();
 }
 
+
+function renderFavoritesView() {
+  if (!state.catalog || !state.searchIndex) return;
+
+  elements.favoriteTrailsList.replaceChildren();
+  if (state.favoriteTrails.size === 0) {
+    elements.noFavoriteTrails.hidden = false;
+  } else {
+    elements.noFavoriteTrails.hidden = true;
+    for (const id of state.favoriteTrails) {
+      const trail = state.catalog.trails.find(t => t.id === id);
+      if (trail) {
+        const item = node("div", "species-result-item");
+        const btn = node("button", "result-card");
+        btn.type = "button";
+        btn.append(buildStarButton("trail", trail.id));
+        const title = node("span", "result-title", trail.name);
+        title.prepend(featureKindBadge(trail));
+        btn.append(title);
+        btn.addEventListener("click", () => {
+          elements.favoritesView.hidden = true;
+          elements.resultsView.hidden = false;
+          selectTrail(trail.id);
+        });
+        item.append(btn);
+        elements.favoriteTrailsList.append(item);
+      }
+    }
+  }
+
+  elements.favoriteSpeciesList.replaceChildren();
+  if (state.favoriteSpecies.size === 0) {
+    elements.noFavoriteSpecies.hidden = false;
+  } else {
+    elements.noFavoriteSpecies.hidden = true;
+    const allSpecies = speciesCatalog(state.searchIndex);
+    for (const taxonId of state.favoriteSpecies) {
+      const species = allSpecies.find(s => String(s.taxonId) === taxonId);
+      if (species) {
+        const item = node("div", "species-result-item");
+        const btn = node("button", "result-card");
+        btn.type = "button";
+        btn.append(buildStarButton("species", species.taxonId));
+        btn.append(node("span", "result-title", localizedSpeciesLabel(species)));
+        btn.addEventListener("click", () => {
+          elements.favoritesView.hidden = true;
+          elements.resultsView.hidden = false;
+          state.selectedSpeciesList = [species];
+          elements.speciesSearch.value = "";
+          state.speciesQuery = "";
+          renderSelectedSpeciesPills();
+          showSearchResults();
+        });
+        item.append(btn);
+        elements.favoriteSpeciesList.append(item);
+      }
+    }
+  }
+}
 function bindEvents() {
   elements.welcomeClose.addEventListener("click", () => closeWelcomeDialog());
   elements.welcomeStart.addEventListener("click", () => closeWelcomeDialog());
@@ -2068,10 +2172,24 @@ function bindEvents() {
     });
   }
   elements.openTutorial.addEventListener("click", () => showWelcomeDialog({ force: true }));
+  elements.openFavorites.addEventListener("click", () => {
+    elements.criteriaView.hidden = true;
+    elements.resultsView.hidden = true;
+    elements.favoritesView.hidden = false;
+    elements.favoritesBadge.hidden = true;
+    renderFavoritesView();
+  });
+  elements.favoritesView.querySelector(".back-to-search").addEventListener("click", () => {
+    elements.favoritesView.hidden = true;
+    elements.criteriaView.hidden = false;
+  });
   elements.language.addEventListener("change", () => {
     state.language = elements.language.value;
     localStorage.setItem("vildaleder-language", state.language);
     state.loadedSelection = null;
+    renderAll();
+    initialisePeriodControls();
+    renderFavoritesView();
     applyLanguage();
   });
   elements.locateUser.addEventListener("click", toggleLocationTracking);
@@ -2291,6 +2409,55 @@ function mergedSearchIndex(primary, additional) {
   };
 }
 
+
+async function checkNewFavorites() {
+  if (state.favoriteTrails.size === 0 && state.favoriteSpecies.size === 0) {
+    localStorage.setItem("vildaleder-last-visit", new Date().toISOString());
+    return;
+  }
+  
+  const lastVisit = new Date(state.lastVisit);
+  let hasNew = false;
+  
+  if (state.skandobs && state.favoriteSpecies.size > 0) {
+    for (const obs of state.skandobs) {
+      if (state.favoriteSpecies.has(String(obs.taxonId))) {
+        if (new Date(obs.startDate) > lastVisit) {
+          hasNew = true;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!hasNew && state.favoriteTrails.size > 0) {
+    for (const trailId of state.favoriteTrails) {
+      const trail = state.catalog.trails.find(t => t.id === trailId);
+      if (trail && trail.observationCoverage) {
+        try {
+          const files = trail.observationCoverage.files;
+          if (files && files.length > 0) {
+            const firstFile = files[0];
+            const data = await loadJson(`data/observations/${firstFile}`);
+            for (const obs of data) {
+              if (new Date(obs.startDate) > lastVisit) {
+                hasNew = true;
+                break;
+              }
+            }
+          }
+        } catch(e) { console.error(e); }
+      }
+      if (hasNew) break;
+    }
+  }
+
+  if (hasNew) {
+    elements.favoritesBadge.hidden = false;
+  }
+  
+  localStorage.setItem("vildaleder-last-visit", new Date().toISOString());
+}
 async function start() {
   applyLanguage();
   initialisePeriodControls();
@@ -2365,6 +2532,7 @@ async function start() {
     drawMap();
     renderAll();
     startSnapshotWatcher(state.catalog.meta.generatedAt);
+    void checkNewFavorites();
   } catch (error) {
     console.error(error);
     elements.status.classList.add("is-error");
