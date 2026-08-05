@@ -2332,8 +2332,12 @@ function populateSpeciesFilterMunicipalities(county, selectedMuni) {
     state.catalog.reserves?.forEach(addMuni);
     state.catalog.destinations?.forEach(addMuni);
   }
+  const availableMunicipalities = state.catalog?.featureMeta?.municipalities;
+  const filteredMunicipalities = availableMunicipalities
+    ? Array.from(municipalities).filter((m) => availableMunicipalities.includes(m))
+    : Array.from(municipalities);
   const muniOptions = ['<option value="" data-i18n="allMunicipalities">' + t("allMunicipalities") + '</option>'];
-  for (const m of Array.from(municipalities).sort()) {
+  for (const m of filteredMunicipalities.sort()) {
     muniOptions.push(`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`);
   }
   elements.speciesFilterMunicipality.innerHTML = muniOptions.join("");
