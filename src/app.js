@@ -2117,8 +2117,15 @@ function renderFavoritesView() {
           setMode("trail");
           if (state.featureKind !== trail.featureKind) {
             elements.featureKind.value = trail.featureKind;
-            elements.featureKind.dispatchEvent(new Event("change"));
+            state.featureKind = trail.featureKind;
           }
+          if (state.county || state.municipality) {
+            elements.county.value = "";
+            state.county = "";
+            elements.municipality.value = "";
+            state.municipality = "";
+          }
+          elements.featureKind.dispatchEvent(new Event("change"));
           selectTrail(trail.id);
         });
         item.append(btn);
@@ -2152,8 +2159,15 @@ function renderFavoritesView() {
           setMode("species");
           if (!state.featureKind) {
             elements.featureKind.value = "all";
-            elements.featureKind.dispatchEvent(new Event("change"));
+            state.featureKind = "all";
           }
+          if (state.county || state.municipality) {
+            elements.county.value = "";
+            state.county = "";
+            elements.municipality.value = "";
+            state.municipality = "";
+          }
+          elements.featureKind.dispatchEvent(new Event("change"));
           showSearchResults();
         });
         item.append(btn);
