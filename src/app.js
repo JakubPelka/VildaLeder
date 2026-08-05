@@ -2124,6 +2124,12 @@ function renderFavoritesView() {
         const title = node("span", "result-title", trail.name);
         title.prepend(featureKindBadge(trail));
         btn.append(title);
+        btn.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            btn.click();
+          }
+        });
         btn.addEventListener("click", () => {
           elements.favoritesView.hidden = true;
           elements.resultsView.hidden = false;
@@ -2161,8 +2167,8 @@ function renderFavoritesView() {
       const species = allSpecies.find(s => String(s.taxonId) === taxonId);
       if (species) {
         const item = node("div", "species-result-item");
-        const btn = node("button", "result-card");
-        btn.type = "button";
+        const btn = node("div", "result-card");
+        btn.tabIndex = 0;
         const configBtn = node("button", "edit-filter-btn");
         configBtn.type = "button";
         configBtn.innerHTML = "⚙️";
@@ -2172,10 +2178,26 @@ function renderFavoritesView() {
           openSpeciesFilterDialog(taxonId, config, species);
         });
 
-        btn.append(buildStarButton("species", species.taxonId));
-        btn.append(node("span", "result-title", localizedSpeciesLabel(species)));
-        btn.append(configBtn);
+        const titleRow = node("div");
+        titleRow.style.display = "flex";
+        titleRow.style.alignItems = "center";
+        titleRow.style.marginBottom = "0.25rem";
+        
+        const titleSpan = node("span", "result-title");
+        titleSpan.textContent = localizedSpeciesLabel(species);
+        titleSpan.style.marginBottom = "0";
 
+        titleRow.append(buildStarButton("species", species.taxonId));
+        titleRow.append(titleSpan);
+        titleRow.append(configBtn);
+        btn.append(titleRow);
+
+        btn.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            btn.click();
+          }
+        });
         btn.addEventListener("click", () => {
           elements.favoritesView.hidden = true;
           elements.resultsView.hidden = false;
