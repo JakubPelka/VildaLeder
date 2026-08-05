@@ -2151,7 +2151,7 @@ function renderFavoritesView() {
           renderSelectedSpeciesPills();
           setMode("species");
           if (!state.featureKind) {
-            elements.featureKind.value = "trail";
+            elements.featureKind.value = "all";
             elements.featureKind.dispatchEvent(new Event("change"));
           }
           showSearchResults();
