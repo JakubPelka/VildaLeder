@@ -1551,6 +1551,7 @@ footer {
 
   .observation-table-panel {
     min-height: 0;
+    flex: 0 0 var(--observation-table-height, var(--observation-table-ratio));
     padding-inline: 0.75rem;
     overflow: hidden;
   }

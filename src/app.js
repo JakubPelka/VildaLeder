@@ -14,8 +14,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-map-menu-v31";
-import { translations, translator } from "./i18n.js?v=20260804-map-menu-v31";
+} from "./core.js?v=20260804-map-menu-v32";
+import { translations, translator } from "./i18n.js?v=20260804-map-menu-v32";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -32,7 +32,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-map-menu-v31";
+} from "./map.js?v=20260804-map-menu-v32";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -1397,6 +1397,8 @@ function applyMapTableRatio(requestedRatio, persist = false) {
   const ratio = Math.min(Math.max(requestedRatio, bounds.min), Math.max(bounds.min, bounds.max));
   const percentage = Math.round(ratio * 1000) / 10;
   elements.mapPanel.style.setProperty("--observation-table-ratio", `${percentage}%`);
+  const panelHeight = Math.max(1, elements.mapPanel.clientHeight);
+  elements.mapPanel.style.setProperty("--observation-table-height", `${Math.round(panelHeight * ratio)}px`);
   elements.mapTableResizer.setAttribute("aria-valuemin", String(Math.round(bounds.min * 100)));
   elements.mapTableResizer.setAttribute("aria-valuemax", String(Math.round(bounds.max * 100)));
   elements.mapTableResizer.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
