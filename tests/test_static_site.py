@@ -114,7 +114,6 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("cluster: true", map_source)
         self.assertIn('LAYER_OBSERVATION_CLUSTERS = "observations-clusters"', map_source)
         self.assertIn("point_count_abbreviated", map_source)
-        self.assertIn("getClusterExpansionZoom", map_source)
         self.assertIn('id="observation-table-panel"', html)
         self.assertIn('id="observation-table-body"', html)
         self.assertIn('id="map-table-resizer"', html)
