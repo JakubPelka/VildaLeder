@@ -2165,7 +2165,7 @@ function renderFavoritesView() {
         const configBtn = node("button", "edit-filter-btn");
         configBtn.type = "button";
         configBtn.innerHTML = "⚙️";
-        configBtn.title = translate("editFilter") || "Edit filter";
+        configBtn.title = t("editFilter") || "Edit filter";
         configBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           openSpeciesFilterDialog(taxonId, config, species);
@@ -2199,13 +2199,11 @@ function renderFavoritesView() {
             state.county = config.county || "";
             elements.municipality.value = "";
             state.municipality = "";
-            populateMunicipalities(state.county);
           } else if (config.scope === "municipality") {
             elements.featureKind.value = "all";
             state.featureKind = "all";
             elements.county.value = config.county || "";
             state.county = config.county || "";
-            populateMunicipalities(state.county);
             elements.municipality.value = config.municipality || "";
             state.municipality = config.municipality || "";
           } else if (config.scope === "featureKind") {
@@ -2241,7 +2239,7 @@ function openSpeciesFilterDialog(taxonId, config, species) {
     state.catalog.destinations.forEach(d => d.county && counties.add(d.county));
   }
   
-  const countyOptions = ['<option value="" data-i18n="allCounties">' + translate("allCounties") + '</option>'];
+  const countyOptions = ['<option value="" data-i18n="allCounties">' + t("allCounties") + '</option>'];
   for (const c of Array.from(counties).sort()) {
     countyOptions.push(`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`);
   }
@@ -2267,7 +2265,7 @@ function populateSpeciesFilterMunicipalities(county, selectedMuni) {
     state.catalog.reserves.forEach(addMuni);
     state.catalog.destinations.forEach(addMuni);
   }
-  const muniOptions = ['<option value="" data-i18n="allMunicipalities">' + translate("allMunicipalities") + '</option>'];
+  const muniOptions = ['<option value="" data-i18n="allMunicipalities">' + t("allMunicipalities") + '</option>'];
   for (const m of Array.from(municipalities).sort()) {
     muniOptions.push(`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`);
   }
