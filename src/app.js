@@ -2110,6 +2110,10 @@ function renderFavoritesView() {
         btn.addEventListener("click", () => {
           elements.favoritesView.hidden = true;
           elements.resultsView.hidden = false;
+          state.selectedSpeciesList = [];
+          elements.speciesSearch.value = "";
+          state.speciesQuery = "";
+          renderSelectedSpeciesPills();
           selectTrail(trail.id);
         });
         item.append(btn);
@@ -2135,6 +2139,7 @@ function renderFavoritesView() {
         btn.addEventListener("click", () => {
           elements.favoritesView.hidden = true;
           elements.resultsView.hidden = false;
+          clearTrailSelection();
           state.selectedSpeciesList = [species];
           elements.speciesSearch.value = "";
           state.speciesQuery = "";
