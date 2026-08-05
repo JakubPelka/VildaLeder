@@ -2323,8 +2323,9 @@ function populateSpeciesFilterMunicipalities(county, selectedMuni) {
   const municipalities = new Set();
   if (county && state.catalog) {
     const addMuni = (f) => {
-      if (f.county === county && f.municipalities) {
-        f.municipalities.forEach(m => municipalities.add(m));
+      if (f.county === county) {
+        const fMunis = f.municipalities || [f.municipality].filter(Boolean);
+        fMunis.forEach(m => municipalities.add(m));
       }
     };
     state.catalog.trails?.forEach(addMuni);
@@ -2355,7 +2356,8 @@ function populateSpeciesFilterFeatures(selectedFeatureId) {
   
   const filtered = allFeatures.filter(f => {
     if (county && f.county !== county) return false;
-    if (muni && (!f.municipalities || !f.municipalities.includes(muni))) return false;
+    const fMunis = f.municipalities || [f.municipality].filter(Boolean);
+    if (muni && !fMunis.includes(muni)) return false;
     if (kind && f.featureKind !== kind) {
       if (kind === "observation_infrastructure") {
         if (!["bird_hide", "observation_tower", "observation_site"].includes(f.featureKind)) return false;

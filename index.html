@@ -66,7 +66,7 @@
     <main class="app-shell">
       <aside id="search-sidebar" class="sidebar" aria-label="Search and results" tabindex="-1">
         <div class="sidebar-heading">
-          <strong data-i18n="searchMenu">Search</strong>
+          <strong data-i18n="mainMenu">Main menu</strong>
           <button id="sidebar-close" class="sidebar-close" type="button">
             <span aria-hidden="true">×</span>
             <span class="sr-only" data-i18n="closeSearchMenu">Close search menu</span>
@@ -78,6 +78,7 @@
         </div>
 
         <div id="criteria-view" class="criteria-view">
+          <h2 data-i18n="searchMenu" style="margin-bottom: 1rem;">Search</h2>
           <ol class="criteria-progress" aria-label="Search steps" data-i18n-aria-label="searchSteps">
             <li class="is-active" data-criteria-progress="1">
               <span>1</span><strong data-i18n="selectSpeciesStep">Species</strong>
@@ -243,8 +244,8 @@
               <h2 data-i18n="rankedPlaces">Ranked places</h2>
             </div>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; flex: 1; justify-content: flex-end;">
-              <button id="back-to-criteria" class="wizard-secondary" type="button" data-i18n="backToMainMenu">
-                Back to main menu
+              <button id="back-to-criteria" class="wizard-secondary" type="button" data-i18n="backToCriteria">
+                Back to search criteria
               </button>
               <button id="new-search" class="wizard-secondary" type="button" data-i18n="backToMainMenu">
                 Back to main menu
