@@ -552,7 +552,7 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
     )
     with psycopg.connect(args.database_url) as connection:
         stats["dailyAggregates"] = 0
-        if tasks:
+        if tasks and not getattr(args, 'skip_aggregates', False):
             stats["dailyAggregates"] = connection.execute(
                 "SELECT vildaleder.refresh_daily_feature_taxon(%s, %s)",
                 (window_start, args.end_date),

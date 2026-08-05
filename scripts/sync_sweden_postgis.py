@@ -16,7 +16,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -305,6 +305,7 @@ def process_county(
             municipality=municipality_name,
             priority_municipality="",
             force=False,
+            skip_aggregates=True,
         )
         print(f"[{iso_timestamp()}] Syncing observations for {municipality_name}", file=sys.stderr, flush=True)
         stats = sync_sos(sos_args)
@@ -365,6 +366,16 @@ def main() -> int:
                         break
                     time.sleep(min(900, 30 * 2 ** (attempt - 1)))
         progress["currentCounty"] = None
+        
+        # Refresh the daily aggregates materialized view across the whole window once the backfill is complete
+        print(f"[{iso_timestamp()}] Refreshing daily feature aggregates...", file=sys.stderr, flush=True)
+        with psycopg.connect(args.database_url) as connection:
+            connection.execute(
+                "SELECT vildaleder.refresh_daily_feature_taxon(%s, %s)",
+                (args.end_date - timedelta(days=args.days - 1), args.end_date),
+            )
+            connection.commit()
+            
         progress["completedAt"] = iso_timestamp()
         atomic_json(progress_path, progress)
     except (OSError, ValueError, RuntimeError, RefreshError, requests.RequestException, psycopg.Error) as exc:
