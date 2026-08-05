@@ -186,10 +186,10 @@ def request_json(
                 )
             retry_after = response.headers.get("Retry-After")
             if retry_after and retry_after.isdigit():
-                time.sleep(min(int(retry_after), 30))
+                time.sleep(min(int(retry_after), 120))
         if not retryable or attempt == attempts - 1:
             break
-        delay = min(30, 1.5 * (2**attempt)) + random.random()
+        delay = min(120, 1.5 * (2**attempt)) + random.random()
         time.sleep(delay)
     raise RefreshError(f"Request failed after {attempts} attempts for {url}: {last_message}")
 

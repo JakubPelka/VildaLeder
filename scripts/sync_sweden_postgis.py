@@ -187,6 +187,27 @@ def update_progress(
     atomic_json(path, progress)
 
 
+def update_municipality_progress(
+    path: Path,
+    progress: dict[str, Any],
+    county: County,
+    municipality: str,
+    status: str,
+    **details: Any,
+) -> None:
+    progress["updatedAt"] = iso_timestamp()
+    progress["currentCounty"] = county.name
+    progress["currentMunicipality"] = municipality
+    county_progress = progress.setdefault("counties", {}).setdefault(county.name, {})
+    county_progress.setdefault("municipalities", {})[municipality] = {
+        **county_progress.get("municipalities", {}).get(municipality, {}),
+        "status": status,
+        "updatedAt": progress["updatedAt"],
+        **details,
+    }
+    atomic_json(path, progress)
+
+
 def database_name(database_url: str) -> str:
     with psycopg.connect(database_url) as connection:
         return connection.execute("SELECT current_database()").fetchone()[0]
@@ -269,18 +290,27 @@ def process_county(
     )
     if args.skip_observations:
         return
-    sos_args = argparse.Namespace(
-        features=catalog_path,
-        database_url=args.database_url,
-        days=args.days,
-        end_date=args.end_date,
-        workers=args.workers,
-        municipality=None,
-        priority_municipality="",
-        force=False,
-    )
-    stats = sync_sos(sos_args)
-    update_progress(progress_path, progress, county, "complete", sos=stats)
+    for municipality_code, municipality_name in municipalities.items():
+        county_progress = progress.get("counties", {}).get(county.name, {})
+        muni_status = county_progress.get("municipalities", {}).get(municipality_name, {}).get("status")
+        if muni_status == "complete":
+            continue
+
+        sos_args = argparse.Namespace(
+            features=catalog_path,
+            database_url=args.database_url,
+            days=args.days,
+            end_date=args.end_date,
+            workers=args.workers,
+            municipality=municipality_name,
+            priority_municipality="",
+            force=False,
+        )
+        print(f"[{iso_timestamp()}] Syncing observations for {municipality_name}", file=sys.stderr, flush=True)
+        stats = sync_sos(sos_args)
+        update_municipality_progress(progress_path, progress, county, municipality_name, "complete", sos=stats)
+        
+    update_progress(progress_path, progress, county, "complete")
 
 
 def main() -> int:
