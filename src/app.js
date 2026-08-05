@@ -2375,6 +2375,7 @@ function bindEvents() {
     renderAll();
     initialisePeriodControls();
     renderFavoritesView();
+    renderSelectedSpeciesPills();
     applyLanguage();
   });
   elements.locateUser.addEventListener("click", toggleLocationTracking);
