@@ -27,9 +27,11 @@ try:
     from scripts.refresh_data import RefreshError, iso_timestamp
     from scripts.sync_features import (
         build_catalog,
+        deduplicate_features,
         fetch_national_parks,
         fetch_nvl_destinations,
         fetch_nvl_trails,
+        fetch_osm_destinations,
         fetch_reserves,
         fetch_routes,
         upsert_postgis,
@@ -39,9 +41,11 @@ except ModuleNotFoundError:  # Direct execution adds scripts/ rather than the re
     from refresh_data import RefreshError, iso_timestamp  # type: ignore[no-redef]
     from sync_features import (  # type: ignore[no-redef]
         build_catalog,
+        deduplicate_features,
         fetch_national_parks,
         fetch_nvl_destinations,
         fetch_nvl_trails,
+        fetch_osm_destinations,
         fetch_reserves,
         fetch_routes,
         upsert_postgis,
@@ -218,13 +222,17 @@ def build_county_catalog(
     municipalities: dict[str, str],
     output: Path,
 ) -> dict[str, Any]:
-    trails = [
-        *fetch_routes(county.name, municipalities),
-        *fetch_nvl_trails(county.name),
-    ]
+    osm_routes = fetch_routes(county.name, municipalities)
+    nvv_routes = fetch_nvl_trails(county.name)
+    trails = deduplicate_features(nvv_routes, osm_routes)
+    
     reserves = fetch_reserves(county.name, county.nvr_code)
     national_parks = fetch_national_parks(county.name, county.nvr_code)
-    destinations = fetch_nvl_destinations(county.name)
+    
+    osm_dests = fetch_osm_destinations(county.name, municipalities)
+    nvv_dests = fetch_nvl_destinations(county.name)
+    destinations = deduplicate_features(nvv_dests, osm_dests)
+    
     features = sorted(
         [*trails, *reserves, *national_parks, *destinations],
         key=lambda item: (item["featureKind"], item["name"].casefold(), item["id"]),
