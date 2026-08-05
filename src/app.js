@@ -14,8 +14,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-map-menu-v28";
-import { translations, translator } from "./i18n.js?v=20260804-map-menu-v28";
+} from "./core.js?v=20260804-map-menu-v29";
+import { translations, translator } from "./i18n.js?v=20260804-map-menu-v29";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -32,7 +32,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-map-menu-v28";
+} from "./map.js?v=20260804-map-menu-v29";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -40,7 +40,7 @@ const SNAPSHOT_POLL_MS = 15 * 60 * 1_000;
 const MAP_TABLE_RATIO_KEY = "vildaleder-map-table-ratio";
 const DEFAULT_MAP_TABLE_RATIO = 0.25;
 const MIN_MAP_HEIGHT = 240;
-const MIN_TABLE_HEIGHT = 160;
+const MIN_TABLE_HEIGHT = 60;
 const PERIOD_PREFERENCE_KEY = "vildaleder-period";
 const CUSTOM_START_PREFERENCE_KEY = "vildaleder-custom-start";
 const CUSTOM_END_PREFERENCE_KEY = "vildaleder-custom-end";
@@ -1382,7 +1382,7 @@ function renderObservationTable() {
 function mapTableRatioBounds() {
   const panelHeight = Math.max(1, elements.mapPanel.clientHeight);
   const resizerHeight = elements.mapTableResizer.offsetHeight || 13;
-  const min = Math.max(0.18, MIN_TABLE_HEIGHT / panelHeight);
+  const min = Math.max(0.08, MIN_TABLE_HEIGHT / panelHeight);
   return {
     min,
     max: Math.max(
@@ -1832,7 +1832,6 @@ function clearTrailSelection() {
   void renderSpeciesResults();
   void renderTrailDetails();
   updateMapStyles();
-  fitAllTrails(areaTrails());
 }
 
 function resetFilters() {
