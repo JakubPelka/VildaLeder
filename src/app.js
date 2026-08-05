@@ -2251,6 +2251,7 @@ function renderFavoritesView() {
 let currentFilterTaxonId = null;
 
 function openSpeciesFilterDialog(taxonId, config, species) {
+  config = config || {};
   currentFilterTaxonId = taxonId;
   elements.speciesFilterSubtitle.textContent = localizedSpeciesLabel(species);
   elements.speciesFilterScope.value = config.scope || "sweden";
