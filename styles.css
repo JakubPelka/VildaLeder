@@ -1523,7 +1523,9 @@ footer {
   }
 
   .map-table-resizer {
-    /* visible on mobile now */
+    min-height: 24px;
+    flex: 0 0 24px;
+    margin-top: -12px;
   }
 
   .observation-table-header {
