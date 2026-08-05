@@ -152,6 +152,8 @@ const elements = {
   speciesFilterMunicipality: document.querySelector("#species-filter-municipality"),
   speciesFilterKindGroup: document.querySelector("#species-filter-kind-group"),
   speciesFilterKind: document.querySelector("#species-filter-kind"),
+  speciesFilterFeatureGroup: document.querySelector("#species-filter-feature-group"),
+  speciesFilterFeature: document.querySelector("#species-filter-feature"),
   speciesFilterSave: document.querySelector("#species-filter-save"),
   status: document.querySelector("#status"),
   locateUser: document.querySelector("#locate-user"),
@@ -515,16 +517,22 @@ function showSearchCriteria() {
 }
 
 function populateAreaFilters() {
-  const counties = [...new Set(state.catalog.trails.map((trail) => trail.county))].sort();
+  const allFeatures = [
+    ...(state.catalog.trails || []),
+    ...(state.catalog.reserves || []),
+    ...(state.catalog.destinations || [])
+  ];
+  
+  const counties = [...new Set(allFeatures.map((f) => f.county).filter(Boolean))].sort();
   const municipalities = [
     ...new Set(
-      state.catalog.trails
+      allFeatures
         .filter(
-          (trail) =>
-            (!state.featureKind || matchesFeatureKind(trail.featureKind, state.featureKind)) &&
-            (!state.county || trail.county === state.county),
+          (f) =>
+            (!state.featureKind || matchesFeatureKind(f.featureKind, state.featureKind)) &&
+            (!state.county || f.county === state.county),
         )
-        .flatMap((trail) => trail.municipalities || [trail.municipality].filter(Boolean)),
+        .flatMap((f) => f.municipalities || [f.municipality].filter(Boolean)),
     ),
   ].sort();
   const availableMunicipalities = state.catalog.featureMeta?.municipalities;
@@ -2236,10 +2244,28 @@ function renderFavoritesView() {
             state.county = "";
             elements.municipality.value = "";
             state.municipality = "";
+          } else if (config.scope === "feature") {
+            const allFeatures = [
+              ...(state.catalog?.trails || []),
+              ...(state.catalog?.reserves || []),
+              ...(state.catalog?.destinations || [])
+            ];
+            const feature = allFeatures.find(f => f.id === config.featureId);
+            
+            elements.featureKind.value = feature ? feature.featureKind : (config.featureKind || "all");
+            state.featureKind = elements.featureKind.value;
+            elements.county.value = feature ? (feature.county || "") : (config.county || "");
+            state.county = elements.county.value;
+            elements.municipality.value = (feature && feature.municipalities) ? feature.municipalities[0] : (config.municipality || "");
+            state.municipality = elements.municipality.value;
           }
 
           elements.featureKind.dispatchEvent(new Event("change"));
-          showSearchResults();
+          if (config.scope === "feature" && config.featureId) {
+            selectTrail(config.featureId);
+          } else {
+            renderAll();
+          }
         });
         item.append(btn);
         elements.favoriteSpeciesList.append(item);
@@ -2283,6 +2309,12 @@ function openSpeciesFilterDialog(taxonId, config, species) {
   populateSpeciesFilterMunicipalities(config.county, config.municipality);
   if (config.featureKind) elements.speciesFilterKind.value = config.featureKind;
   
+  if (config.scope === "feature" && config.featureId) {
+    populateSpeciesFilterFeatures(config.featureId);
+  } else {
+    populateSpeciesFilterFeatures();
+  }
+
   updateSpeciesFilterVisibility();
   elements.speciesFilterDialog.hidden = false;
 }
@@ -2307,25 +2339,70 @@ function populateSpeciesFilterMunicipalities(county, selectedMuni) {
   if (selectedMuni) elements.speciesFilterMunicipality.value = selectedMuni;
 }
 
+function populateSpeciesFilterFeatures(selectedFeatureId) {
+  const scope = elements.speciesFilterScope.value;
+  if (scope !== "feature" || !state.catalog) return;
+  
+  const county = elements.speciesFilterCounty.value;
+  const muni = elements.speciesFilterMunicipality.value;
+  const kind = elements.speciesFilterKind.value;
+  
+  const allFeatures = [
+    ...(state.catalog.trails || []),
+    ...(state.catalog.reserves || []),
+    ...(state.catalog.destinations || [])
+  ];
+  
+  const filtered = allFeatures.filter(f => {
+    if (county && f.county !== county) return false;
+    if (muni && (!f.municipalities || !f.municipalities.includes(muni))) return false;
+    if (kind && f.featureKind !== kind) {
+      if (kind === "observation_infrastructure") {
+        if (!["bird_hide", "observation_tower", "observation_site"].includes(f.featureKind)) return false;
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }).sort((a, b) => a.name.localeCompare(b.name));
+  
+  const options = [];
+  for (const f of filtered) {
+    options.push(`<option value="${escapeHtml(f.id)}">${escapeHtml(f.name)} (${escapeHtml(f.county || "")})</option>`);
+  }
+  elements.speciesFilterFeature.innerHTML = options.join("");
+  if (selectedFeatureId) elements.speciesFilterFeature.value = selectedFeatureId;
+}
+
 function updateSpeciesFilterVisibility() {
   const scope = elements.speciesFilterScope.value;
-  elements.speciesFilterCountyGroup.hidden = !(scope === "county" || scope === "municipality");
-  elements.speciesFilterMunicipalityGroup.hidden = scope !== "municipality";
-  elements.speciesFilterKindGroup.hidden = scope !== "featureKind";
+  const isFeature = scope === "feature";
+  
+  elements.speciesFilterCountyGroup.hidden = !(scope === "county" || scope === "municipality" || isFeature);
+  elements.speciesFilterMunicipalityGroup.hidden = !(scope === "municipality" || isFeature);
+  elements.speciesFilterKindGroup.hidden = !(scope === "featureKind" || isFeature);
+  elements.speciesFilterFeatureGroup.hidden = !isFeature;
+  
+  if (isFeature) {
+    populateSpeciesFilterFeatures();
+  }
 }
 
 function saveSpeciesFilter() {
   if (!currentFilterTaxonId) return;
   const scope = elements.speciesFilterScope.value;
   const config = { scope };
-  if (scope === "county" || scope === "municipality") {
+  if (scope === "county" || scope === "municipality" || scope === "feature") {
     config.county = elements.speciesFilterCounty.value;
   }
-  if (scope === "municipality") {
+  if (scope === "municipality" || scope === "feature") {
     config.municipality = elements.speciesFilterMunicipality.value;
   }
-  if (scope === "featureKind") {
+  if (scope === "featureKind" || scope === "feature") {
     config.featureKind = elements.speciesFilterKind.value;
+  }
+  if (scope === "feature") {
+    config.featureId = elements.speciesFilterFeature.value;
   }
   
   state.favoriteSpecies.set(currentFilterTaxonId, config);
@@ -2361,6 +2438,13 @@ function bindEvents() {
   });
   elements.speciesFilterCounty.addEventListener("change", (e) => {
     populateSpeciesFilterMunicipalities(e.target.value);
+    populateSpeciesFilterFeatures();
+  });
+  elements.speciesFilterMunicipality.addEventListener("change", () => {
+    populateSpeciesFilterFeatures();
+  });
+  elements.speciesFilterKind.addEventListener("change", () => {
+    populateSpeciesFilterFeatures();
   });
   elements.speciesFilterDialog.addEventListener("click", (event) => {
     if (event.target === elements.speciesFilterDialog) elements.speciesFilterDialog.hidden = true;
@@ -2398,7 +2482,7 @@ function bindEvents() {
     elements.favoritesBadge.hidden = true;
     renderFavoritesView();
   });
-  elements.favoritesView.querySelector(".back-to-search").addEventListener("click", () => {
+  elements.favoritesView.querySelector("#close-favorites").addEventListener("click", () => {
     elements.favoritesView.hidden = true;
     elements.criteriaView.hidden = false;
   });

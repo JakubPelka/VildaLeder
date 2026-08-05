@@ -209,6 +209,13 @@
             </div>
           </section>
 
+          <section id="results-view" class="drawer-content" hidden>
+            <div class="results-header">
+              <button id="new-search" class="wizard-secondary" type="button" data-i18n="backToMainMenu">Back to main menu</button>
+              <button id="back-to-criteria" class="wizard-secondary" type="button" data-i18n="backToMainMenu">Back to main menu</button>
+            </div>
+          </section>
+
           <button id="open-favorites" class="about-tutorial" type="button">
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.314-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.636.282.95l-3.522 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z"/></svg>
             <span data-i18n="manageFavorites">Manage favorites</span>
@@ -221,10 +228,8 @@
 
         <div id="favorites-view" class="favorites-view" hidden>
           <div class="results-header">
-            <button class="back-to-search" type="button" data-i18n="backToSearch">
-              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/></svg>
-              <span data-i18n="back">Back</span>
-            </button>
+            <button id="close-favorites" class="wizard-secondary" style="align-self: flex-start; margin-bottom: 1rem;" type="button" data-i18n="backToMainMenu">Back to main menu</button>
+          </div>
             <h2 data-i18n="favoritesHeading">Favorites</h2>
           </div>
           <div class="favorites-content">
@@ -399,6 +404,7 @@
             <option value="county" data-i18n="countyScope">County</option>
             <option value="municipality" data-i18n="municipalityScope">Municipality</option>
             <option value="featureKind" data-i18n="featureKindScope">Feature Type</option>
+            <option value="feature" data-i18n="specificFeatureScope">Specific Place</option>
           </select>
         </div>
 
@@ -419,14 +425,18 @@
         <div class="wizard-group" id="species-filter-kind-group" hidden>
           <label for="species-filter-kind" data-i18n="placeType">Place type</label>
           <select id="species-filter-kind" class="wizard-input">
-            <option value="trail" data-i18n="trail">Trail</option>
-            <option value="reserve" data-i18n="natureReserve">Nature Reserve</option>
-            <option value="national_park" data-i18n="nationalPark">National Park</option>
-            <option value="observation_tower" data-i18n="observationTower">Observation Tower</option>
-            <option value="bird_hide" data-i18n="birdHide">Bird Hide</option>
-            <option value="observation_site" data-i18n="observationSite">Observation Site</option>
+            <option value="" data-i18n="choosePlaceType">Choose what to show</option>
+            <option value="trail" data-i18n="trailsOnly">Trails</option>
+            <option value="reserve" data-i18n="reservesOnly">Nature reserves</option>
+            <option value="national_park" data-i18n="nationalParksOnly">National parks</option>
+            <option value="observation_infrastructure" data-i18n="observationInfrastructureOnly">Observation infrastructure</option>
             <option value="urban_green" data-i18n="urbanGreen">Urban green areas</option>
           </select>
+        </div>
+
+        <div class="wizard-group" id="species-filter-feature-group" hidden>
+          <label for="species-filter-feature" data-i18n="specificFeature">Specific Place</label>
+          <select id="species-filter-feature" class="wizard-input"></select>
         </div>
 
         <div class="welcome-actions" style="margin-top: 2rem;">
