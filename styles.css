@@ -1666,29 +1666,3 @@ footer {
   font-style: italic;
   margin-top: 0.1rem;
 }
-
-.details-header {
-  position: relative;
-}
-
-.details-close {
-  position: absolute;
-  top: -0.5rem;
-  right: -0.5rem;
-  width: 2.5rem;
-  height: 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--brand-dark);
-  cursor: pointer;
-  border-radius: 50%;
-  transition: background-color 100ms;
-}
-
-.details-close:hover {
-  background-color: var(--brand-light);
-}

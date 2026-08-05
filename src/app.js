@@ -14,8 +14,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-map-menu-v26";
-import { translations, translator } from "./i18n.js?v=20260804-map-menu-v26";
+} from "./core.js?v=20260804-map-menu-v25";
+import { translations, translator } from "./i18n.js?v=20260804-map-menu-v25";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -32,7 +32,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-map-menu-v26";
+} from "./map.js?v=20260804-map-menu-v25";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -1186,15 +1186,6 @@ function renderResolvedTrailDetails(trail, observations) {
   const heading = node("h2", "", trail.name);
   heading.prepend(featureKindBadge(trail));
   header.append(heading);
-
-  const closeButton = node("button", "details-close", "×");
-  closeButton.type = "button";
-  closeButton.setAttribute("aria-label", t("clearPlaceSelection"));
-  closeButton.addEventListener("click", () => {
-    clearTrailSelection();
-    if (window.innerWidth <= 800) setSidebarOpen(false);
-  });
-  header.append(closeButton);
   const municipalities = (trail.municipalities || [trail.municipality].filter(Boolean)).join(", ");
   const dimension = featureDimension(trail);
   header.append(
@@ -1215,10 +1206,7 @@ function renderResolvedTrailDetails(trail, observations) {
   osmLink.rel = "noreferrer";
   const clearSelection = node("button", "clear-place-selection", t("clearPlaceSelection"));
   clearSelection.type = "button";
-  clearSelection.addEventListener("click", () => {
-    clearTrailSelection();
-    if (window.innerWidth <= 800) setSidebarOpen(false);
-  });
+  clearSelection.addEventListener("click", clearTrailSelection);
   links.append(osmLink, clearSelection);
   appendLocationActions(links, trail);
   header.append(links);
@@ -1834,12 +1822,7 @@ function selectTrail(trailId) {
   fitTrail(state.catalog.trails.find((trail) => trail.id === trailId));
   if (window.innerWidth <= 800) {
     setSidebarOpen(true);
-    // Allow DOM to update before scrolling to trail details
-    setTimeout(() => {
-      if (elements.trailDetailsHome) {
-        elements.trailDetailsHome.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    }, 50);
+    elements.sidebar.scrollTo({ top: 0, behavior: "smooth" });
   }
 }
 
