@@ -58,6 +58,7 @@ const FEATURE_KIND_TRANSLATIONS = Object.freeze({
   observation_tower: "observationTower",
   bird_hide: "birdHide",
   observation_site: "observationSite",
+  urban_green: "urbanGreen",
 });
 
 const state = {

@@ -243,8 +243,11 @@ def overpass_destinations_query(municipality_code: str) -> str:
         'node(area.searchArea)["leisure"="bird_hide"];'
         'node(area.searchArea)["man_made"="tower"]["tower:type"="observation"];'
         'node(area.searchArea)["tourism"="viewpoint"];'
+        'nwr(area.searchArea)["leisure"="park"];'
+        'nwr(area.searchArea)["landuse"="cemetery"];'
+        'nwr(area.searchArea)["leisure"="garden"];'
         ');'
-        "out body geom;"
+        "out center geom;"
     )
 
 def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[dict[str, Any]]:
@@ -263,28 +266,46 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
             municipality = futures[future]
             try:
                 result = future.result()
-                nodes = [item for item in result.get("elements", []) if item.get("type") == "node"]
-                for node in nodes:
-                    tags = node.get("tags", {})
-                    if tags.get("leisure") == "bird_hide":
+                elements = result.get("elements", [])
+                for element in elements:
+                    tags = element.get("tags", {})
+                    if tags.get("leisure") in ("park", "garden") or tags.get("landuse") == "cemetery":
+                        feature_kind = "urban_green"
+                    elif tags.get("leisure") == "bird_hide":
                         feature_kind = "bird_hide"
                     elif tags.get("tourism") == "viewpoint":
                         feature_kind = "observation_site"
                     else:
                         feature_kind = "observation_tower"
-                    node_id = node["id"]
-                    point = Point(node["lon"], node["lat"])
+                    
+                    element_id = element["id"]
+                    element_type = element.get("type", "node")
+                    
+                    lat = element.get("lat")
+                    lon = element.get("lon")
+                    if lat is None or lon is None:
+                        center = element.get("center", {})
+                        lat = center.get("lat")
+                        lon = center.get("lon")
+                    
+                    if lat is None or lon is None:
+                        continue
+                        
+                    point = Point(lon, lat)
                     analysis = transform(to_wgs84, transform(to_sweref, point).buffer(BUFFER_METERS))
+                    
+                    name = tags.get("name") or f"OSM {feature_kind.replace('_', ' ')} {element_id}"
+                    
                     features.append({
-                        "id": f"osm-node-{node_id}",
+                        "id": f"osm-{element_type}-{element_id}",
                         "featureKind": feature_kind,
                         "source": "osm",
-                        "sourceFeatureId": str(node_id),
-                        "name": tags.get("name") or f"OSM {feature_kind.replace('_', ' ')} {node_id}",
+                        "sourceFeatureId": str(element_id),
+                        "name": name,
                         "county": county,
                         "municipalities": [municipality],
                         "municipality": municipality,
-                        "sourceUrl": f"https://www.openstreetmap.org/node/{node_id}",
+                        "sourceUrl": f"https://www.openstreetmap.org/{element_type}/{element_id}",
                         "geometry": mapping(point),
                         "analysisGeometry": mapping(analysis),
                     })
@@ -836,7 +857,7 @@ def deduplicate_features(primary: list[dict[str, Any]], secondary: list[dict[str
         for pri_shape in primary_shapes:
             if sec_shape.intersects(pri_shape):
                 intersection = sec_shape.intersection(pri_shape)
-                if intersection.area / min(sec_shape.area, pri_shape.area) > 0.5:
+                if intersection.area / min(sec_shape.area, pri_shape.area) > 0.85:
                     is_duplicate = True
                     break
         if not is_duplicate:
