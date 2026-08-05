@@ -1666,3 +1666,74 @@ footer {
   font-style: italic;
   margin-top: 0.1rem;
 }
+
+/* Bottom sheet styling for mobile */
+@media (max-width: 800px) {
+  #trail-details-home {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1300;
+    background: var(--panel);
+    border-top-left-radius: 1rem;
+    border-top-right-radius: 1rem;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
+    max-height: 85vh;
+    overflow-y: auto;
+    transform: translateY(105%);
+    transition: transform 300ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  body.trail-details-open #trail-details-home {
+    transform: translateY(0);
+  }
+
+  body.trail-details-minimized #trail-details-home {
+    /* override transform if needed, but easier is to hide content */
+    top: auto;
+    transform: translateY(0);
+  }
+
+  body.trail-details-minimized #trail-details > *:not(.details-header) {
+    display: none;
+  }
+
+  .details-actions-mobile {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .details-actions-mobile button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--brand-dark);
+    cursor: pointer;
+    border-radius: 50%;
+  }
+
+  .details-actions-mobile button:hover,
+  .details-actions-mobile button:active {
+    background: var(--brand-light);
+  }
+
+  body.trail-details-minimized .details-min-max {
+    /* change minus to plus or square visually? */
+  }
+}
+
+/* Hide mobile actions on desktop */
+@media (min-width: 801px) {
+  .details-actions-mobile {
+    display: none;
+  }
+}

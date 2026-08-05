@@ -14,8 +14,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-map-menu-v25";
-import { translations, translator } from "./i18n.js?v=20260804-map-menu-v25";
+} from "./core.js?v=20260804-map-menu-v27";
+import { translations, translator } from "./i18n.js?v=20260804-map-menu-v27";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -32,7 +32,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-map-menu-v25";
+} from "./map.js?v=20260804-map-menu-v27";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -1186,6 +1186,22 @@ function renderResolvedTrailDetails(trail, observations) {
   const heading = node("h2", "", trail.name);
   heading.prepend(featureKindBadge(trail));
   header.append(heading);
+
+  const actions = node("div", "details-actions-mobile");
+  const isInitiallyMinimized = document.body.classList.contains("trail-details-minimized");
+  const minimizeBtn = node("button", "details-min-max", isInitiallyMinimized ? "□" : "−");
+  minimizeBtn.type = "button";
+  minimizeBtn.addEventListener("click", () => {
+    const isMinimized = document.body.classList.toggle("trail-details-minimized");
+    minimizeBtn.textContent = isMinimized ? "□" : "−";
+  });
+  
+  const closeBtn = node("button", "details-close-mobile", "×");
+  closeBtn.type = "button";
+  closeBtn.addEventListener("click", clearTrailSelection);
+  
+  actions.append(minimizeBtn, closeBtn);
+  header.append(actions);
   const municipalities = (trail.municipalities || [trail.municipality].filter(Boolean)).join(", ");
   const dimension = featureDimension(trail);
   header.append(
@@ -1821,14 +1837,16 @@ function selectTrail(trailId) {
   updateMapStyles();
   fitTrail(state.catalog.trails.find((trail) => trail.id === trailId));
   if (window.innerWidth <= 800) {
-    setSidebarOpen(true);
-    elements.sidebar.scrollTo({ top: 0, behavior: "smooth" });
+    if (sidebarIsOpen()) setSidebarOpen(false);
+    document.body.classList.add("trail-details-open");
+    document.body.classList.remove("trail-details-minimized");
   }
 }
 
 function clearTrailSelection() {
   if (!state.selectedTrailId) return;
   state.selectedTrailId = null;
+  document.body.classList.remove("trail-details-open", "trail-details-minimized");
   renderTrailResults();
   void renderSpeciesResults();
   void renderTrailDetails();
@@ -2145,6 +2163,21 @@ function bindEvents() {
   });
   
   window.addEventListener("resize", syncSidebarState);
+
+  function updateTrailDetailsPlacement() {
+    if (window.innerWidth <= 800) {
+      if (elements.trailDetailsHome && elements.trailDetailsHome.parentElement !== document.querySelector("main")) {
+        document.querySelector("main").append(elements.trailDetailsHome);
+      }
+    } else {
+      if (elements.trailDetailsHome && elements.resultsView && elements.trailDetailsHome.parentElement !== elements.resultsView) {
+        elements.resultsView.append(elements.trailDetailsHome);
+      }
+    }
+  }
+  
+  window.addEventListener("resize", updateTrailDetailsPlacement);
+  updateTrailDetailsPlacement();
 }
 
 function renderSelectedSpeciesPills() {
