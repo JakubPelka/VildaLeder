@@ -2115,6 +2115,10 @@ function renderFavoritesView() {
           state.speciesQuery = "";
           renderSelectedSpeciesPills();
           setMode("trail");
+          if (state.featureKind !== trail.featureKind) {
+            elements.featureKind.value = trail.featureKind;
+            elements.featureKind.dispatchEvent(new Event("change"));
+          }
           selectTrail(trail.id);
         });
         item.append(btn);
@@ -2146,6 +2150,10 @@ function renderFavoritesView() {
           state.speciesQuery = "";
           renderSelectedSpeciesPills();
           setMode("species");
+          if (!state.featureKind) {
+            elements.featureKind.value = "trail";
+            elements.featureKind.dispatchEvent(new Event("change"));
+          }
           showSearchResults();
         });
         item.append(btn);
