@@ -1229,6 +1229,7 @@ function renderResolvedTrailDetails(trail, observations) {
   const header = node("div", "details-header");
   const heading = node("h2", "", trail.name);
   heading.prepend(featureKindBadge(trail));
+  heading.append(buildStarButton("trail", trail.id));
   header.append(heading);
   const municipalities = (trail.municipalities || [trail.municipality].filter(Boolean)).join(", ");
   const dimension = featureDimension(trail);
@@ -1251,7 +1252,7 @@ function renderResolvedTrailDetails(trail, observations) {
   const clearSelection = node("button", "clear-place-selection", t("clearPlaceSelection"));
   clearSelection.type = "button";
   clearSelection.addEventListener("click", clearTrailSelection);
-  links.append(osmLink, clearSelection, buildStarButton("trail", trail.id));
+  links.append(osmLink, clearSelection);
   appendLocationActions(links, trail);
   header.append(links);
   if (trail.description) header.append(node("p", "feature-description", trail.description));
@@ -1735,8 +1736,10 @@ function renderMapObservationSummary(trail, count) {
     elements.mapObservationSummary.textContent = t(
       state.featureKind ? "mapSelectTrail" : "mapChoosePlaceType",
     );
+    elements.mapObservationSummary.hidden = state.placeSearchRequest > 0;
     return;
   }
+  elements.mapObservationSummary.hidden = false;
   if (!trail.observationCoverage) {
     elements.mapObservationSummary.textContent = t("mapObservationSyncPending", {
       trail: trail.name,
@@ -2316,6 +2319,7 @@ function renderSelectedSpeciesPills() {
     species.color = color;
     pill.append(dot);
     pill.append(document.createTextNode(localizedSpeciesLabel(species)));
+    pill.append(buildStarButton("species", species.taxonId));
     const removeBtn = node("button");
     removeBtn.textContent = "×";
     removeBtn.addEventListener("click", () => {
