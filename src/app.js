@@ -1367,6 +1367,9 @@ function renderObservationTable() {
   elements.observationTableTitle.textContent = t("visibleObservationsTitle", {
     place: selectedObject?.name || "",
   });
+  if (selectedObject) {
+    elements.observationTableTitle.append(buildStarButton("trail", selectedObject.id));
+  }
 
   const observations = state.selectedObjectObservations;
   const taxa = groupedObservationTableRows();
@@ -1557,14 +1560,23 @@ function observationTaxonRows(taxon) {
     renderObservationTable();
   });
   speciesCell.append(toggle);
+  
+  const speciesActions = node("span", "observation-species-actions");
+  speciesActions.style.display = "inline-flex";
+  speciesActions.style.alignItems = "center";
+  speciesActions.style.gap = "0.5rem";
+  speciesActions.style.marginLeft = "0.5rem";
+  speciesActions.append(buildStarButton("species", taxon.taxonId));
+  
   const taxonUrl = artfaktaUrl(taxon);
   if (taxonUrl) {
     const artfaktaLink = node("a", "artfakta-link", `${t("readOnArtfakta")} ↗`);
     artfaktaLink.href = taxonUrl;
     artfaktaLink.target = "_blank";
     artfaktaLink.rel = "noreferrer";
-    speciesCell.append(artfaktaLink);
+    speciesActions.append(artfaktaLink);
   }
+  speciesCell.append(speciesActions);
   const countCell = node("td", "observation-count", formatNumber(taxon.count));
   const dateCell = node("td", "", formatDate(taxon.lastSeen));
   const categoryCell = document.createElement("td");
