@@ -14,8 +14,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-map-menu-v33";
-import { translations, translator } from "./i18n.js?v=20260804-map-menu-v33";
+} from "./core.js?v=20260804-map-menu-v34";
+import { translations, translator } from "./i18n.js?v=20260804-map-menu-v34";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -32,7 +32,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-map-menu-v33";
+} from "./map.js?v=20260804-map-menu-v34";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -48,7 +48,7 @@ const PLACE_SEARCH_CACHE_PREFIX = "vildaleder-place-search:";
 const PLACE_SEARCH_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1_000;
 const PLACE_SEARCH_MIN_INTERVAL_MS = 1_100;
 const GEOCODER_ENDPOINT = "https://nominatim.openstreetmap.org/search";
-const PERIOD_VALUES = new Set(["day", "month", "quarter", "year", "custom"]);
+const PERIOD_VALUES = new Set(["day", "week", "month", "quarter", "year", "custom"]);
 const WELCOME_COOKIE = "vildaleder_welcome_dismissed";
 const WELCOME_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 const FEATURE_KIND_TRANSLATIONS = Object.freeze({

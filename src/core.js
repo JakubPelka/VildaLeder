@@ -30,7 +30,7 @@ export function periodRange(period, customStart, customEnd, snapshotStart, snaps
       end: customEnd || snapshotEnd,
     };
   }
-  const days = { day: 1, month: 30, quarter: 90, year: 365 }[period] || 365;
+  const days = { day: 1, week: 7, month: 30, quarter: 90, year: 365 }[period] || 365;
   const end = new Date(`${snapshotEnd}T12:00:00Z`);
   const start = new Date(end);
   start.setUTCDate(start.getUTCDate() - (days - 1));
