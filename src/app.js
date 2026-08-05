@@ -2114,6 +2114,7 @@ function renderFavoritesView() {
           elements.speciesSearch.value = "";
           state.speciesQuery = "";
           renderSelectedSpeciesPills();
+          setMode("trail");
           selectTrail(trail.id);
         });
         item.append(btn);
@@ -2144,6 +2145,7 @@ function renderFavoritesView() {
           elements.speciesSearch.value = "";
           state.speciesQuery = "";
           renderSelectedSpeciesPills();
+          setMode("species");
           showSearchResults();
         });
         item.append(btn);
