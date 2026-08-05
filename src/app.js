@@ -14,8 +14,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-map-menu-v25";
-import { translations, translator } from "./i18n.js?v=20260804-map-menu-v25";
+} from "./core.js?v=20260804-map-menu-v28";
+import { translations, translator } from "./i18n.js?v=20260804-map-menu-v28";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -32,7 +32,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-map-menu-v25";
+} from "./map.js?v=20260804-map-menu-v28";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -1423,7 +1423,6 @@ function setupMapTableResizer() {
   };
 
   elements.mapTableResizer.addEventListener("pointerdown", (event) => {
-    if (window.matchMedia("(max-width: 800px)").matches) return;
     dragging = true;
     elements.mapTableResizer.setPointerCapture(event.pointerId);
     elements.mapPanel.classList.add("is-resizing");
@@ -2145,6 +2144,21 @@ function bindEvents() {
   });
   
   window.addEventListener("resize", syncSidebarState);
+  
+  function updateTrailDetailsPlacement() {
+    if (window.innerWidth <= 800) {
+      if (elements.trailDetailsHome && elements.observationTablePanel && elements.trailDetailsHome.parentElement !== elements.observationTablePanel) {
+        elements.observationTablePanel.prepend(elements.trailDetailsHome);
+      }
+    } else {
+      if (elements.trailDetailsHome && elements.resultsView && elements.trailDetailsHome.parentElement !== elements.resultsView) {
+        elements.resultsView.append(elements.trailDetailsHome);
+      }
+    }
+  }
+
+  window.addEventListener("resize", updateTrailDetailsPlacement);
+  updateTrailDetailsPlacement();
 }
 
 function renderSelectedSpeciesPills() {
@@ -2276,7 +2290,6 @@ async function start() {
         onTrailClick: (trailId, lngLat) => {
           if (state.searchView === "criteria") showSearchResults();
           selectTrail(trailId);
-          if (window.innerWidth <= 800) setSidebarOpen(true);
           const feature = state.catalog?.trails.find((candidate) => candidate.id === trailId);
           if (feature) showFeaturePopup(lngLat, featurePopup(feature));
         },

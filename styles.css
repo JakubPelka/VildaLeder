@@ -1523,7 +1523,7 @@ footer {
   }
 
   .map-table-resizer {
-    display: none;
+    /* visible on mobile now */
   }
 
   .observation-table-header {
@@ -1533,13 +1533,12 @@ footer {
 
   .observation-table-panel {
     min-height: 0;
-    flex-basis: auto;
     padding-inline: 0.75rem;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .observation-table-scroll {
-    max-height: 32rem;
+    /* let it fill the panel based on ratio */
   }
 
   .results-heading {
