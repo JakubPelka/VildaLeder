@@ -104,7 +104,10 @@ const state = {
   locationHasFix: false,
   locationTimer: null,
   favoriteTrails: new Set(JSON.parse(localStorage.getItem("vildaleder-favorite-trails") || "[]")),
-  favoriteSpecies: new Set(JSON.parse(localStorage.getItem("vildaleder-favorite-species") || "[]")),
+  favoriteSpecies: new Map((JSON.parse(localStorage.getItem("vildaleder-favorite-species") || "[]")).map(item => {
+    if (typeof item === "string" || typeof item === "number") return [String(item), { scope: "sweden" }];
+    return [String(item[0]), item[1]];
+  })),
   lastVisit: localStorage.getItem("vildaleder-last-visit") || new Date().toISOString(),
   appReady: false,
 };
@@ -136,6 +139,19 @@ const elements = {
   noFavoriteTrails: document.querySelector("#no-favorite-trails"),
   noFavoriteSpecies: document.querySelector("#no-favorite-species"),
   favoritesBadge: document.querySelector("#favorites-badge"),
+  
+  speciesFilterDialog: document.querySelector("#species-filter-dialog"),
+  speciesFilterClose: document.querySelector("#species-filter-close"),
+  speciesFilterTitle: document.querySelector("#species-filter-title"),
+  speciesFilterSubtitle: document.querySelector("#species-filter-subtitle"),
+  speciesFilterScope: document.querySelector("#species-filter-scope"),
+  speciesFilterCountyGroup: document.querySelector("#species-filter-county-group"),
+  speciesFilterCounty: document.querySelector("#species-filter-county"),
+  speciesFilterMunicipalityGroup: document.querySelector("#species-filter-municipality-group"),
+  speciesFilterMunicipality: document.querySelector("#species-filter-municipality"),
+  speciesFilterKindGroup: document.querySelector("#species-filter-kind-group"),
+  speciesFilterKind: document.querySelector("#species-filter-kind"),
+  speciesFilterSave: document.querySelector("#species-filter-save"),
   status: document.querySelector("#status"),
   locateUser: document.querySelector("#locate-user"),
   locationStatus: document.querySelector("#location-status"),
@@ -216,8 +232,8 @@ function buildStarButton(type, id) {
     } else {
       const taxonId = String(id);
       if (state.favoriteSpecies.has(taxonId)) state.favoriteSpecies.delete(taxonId);
-      else state.favoriteSpecies.add(taxonId);
-      localStorage.setItem("vildaleder-favorite-species", JSON.stringify([...state.favoriteSpecies]));
+      else state.favoriteSpecies.set(taxonId, { scope: "sweden" });
+      localStorage.setItem("vildaleder-favorite-species", JSON.stringify([...state.favoriteSpecies.entries()]));
     }
     const currentlyFav = btn.classList.toggle("is-favorite");
     btn.innerHTML = currentlyFav ? "★" : "☆";
@@ -2140,14 +2156,25 @@ function renderFavoritesView() {
   } else {
     elements.noFavoriteSpecies.hidden = true;
     const allSpecies = speciesCatalog(state.searchIndex);
-    for (const taxonId of state.favoriteSpecies) {
+    for (const [taxonId, config] of state.favoriteSpecies) {
       const species = allSpecies.find(s => String(s.taxonId) === taxonId);
       if (species) {
         const item = node("div", "species-result-item");
         const btn = node("button", "result-card");
         btn.type = "button";
+        const configBtn = node("button", "edit-filter-btn");
+        configBtn.type = "button";
+        configBtn.innerHTML = "⚙️";
+        configBtn.title = translate("editFilter") || "Edit filter";
+        configBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openSpeciesFilterDialog(taxonId, config, species);
+        });
+
         btn.append(buildStarButton("species", species.taxonId));
         btn.append(node("span", "result-title", localizedSpeciesLabel(species)));
+        btn.append(configBtn);
+
         btn.addEventListener("click", () => {
           elements.favoritesView.hidden = true;
           elements.resultsView.hidden = false;
@@ -2157,16 +2184,39 @@ function renderFavoritesView() {
           state.speciesQuery = "";
           renderSelectedSpeciesPills();
           setMode("species");
-          if (!state.featureKind) {
+
+          if (config.scope === "sweden") {
             elements.featureKind.value = "all";
             state.featureKind = "all";
-          }
-          if (state.county || state.municipality) {
+            elements.county.value = "";
+            state.county = "";
+            elements.municipality.value = "";
+            state.municipality = "";
+          } else if (config.scope === "county") {
+            elements.featureKind.value = "all";
+            state.featureKind = "all";
+            elements.county.value = config.county || "";
+            state.county = config.county || "";
+            elements.municipality.value = "";
+            state.municipality = "";
+            populateMunicipalities(state.county);
+          } else if (config.scope === "municipality") {
+            elements.featureKind.value = "all";
+            state.featureKind = "all";
+            elements.county.value = config.county || "";
+            state.county = config.county || "";
+            populateMunicipalities(state.county);
+            elements.municipality.value = config.municipality || "";
+            state.municipality = config.municipality || "";
+          } else if (config.scope === "featureKind") {
+            elements.featureKind.value = config.featureKind || "all";
+            state.featureKind = config.featureKind || "all";
             elements.county.value = "";
             state.county = "";
             elements.municipality.value = "";
             state.municipality = "";
           }
+
           elements.featureKind.dispatchEvent(new Event("change"));
           showSearchResults();
         });
@@ -2176,6 +2226,82 @@ function renderFavoritesView() {
     }
   }
 }
+
+let currentFilterTaxonId = null;
+
+function openSpeciesFilterDialog(taxonId, config, species) {
+  currentFilterTaxonId = taxonId;
+  elements.speciesFilterSubtitle.textContent = localizedSpeciesLabel(species);
+  elements.speciesFilterScope.value = config.scope || "sweden";
+  
+  const counties = new Set();
+  if (state.catalog) {
+    state.catalog.trails.forEach(t => t.county && counties.add(t.county));
+    state.catalog.reserves.forEach(r => r.county && counties.add(r.county));
+    state.catalog.destinations.forEach(d => d.county && counties.add(d.county));
+  }
+  
+  const countyOptions = ['<option value="" data-i18n="allCounties">' + translate("allCounties") + '</option>'];
+  for (const c of Array.from(counties).sort()) {
+    countyOptions.push(`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`);
+  }
+  elements.speciesFilterCounty.innerHTML = countyOptions.join("");
+  if (config.county) elements.speciesFilterCounty.value = config.county;
+  
+  populateSpeciesFilterMunicipalities(config.county, config.municipality);
+  if (config.featureKind) elements.speciesFilterKind.value = config.featureKind;
+  
+  updateSpeciesFilterVisibility();
+  elements.speciesFilterDialog.hidden = false;
+}
+
+function populateSpeciesFilterMunicipalities(county, selectedMuni) {
+  const municipalities = new Set();
+  if (county && state.catalog) {
+    const addMuni = (f) => {
+      if (f.county === county && f.municipalities) {
+        f.municipalities.forEach(m => municipalities.add(m));
+      }
+    };
+    state.catalog.trails.forEach(addMuni);
+    state.catalog.reserves.forEach(addMuni);
+    state.catalog.destinations.forEach(addMuni);
+  }
+  const muniOptions = ['<option value="" data-i18n="allMunicipalities">' + translate("allMunicipalities") + '</option>'];
+  for (const m of Array.from(municipalities).sort()) {
+    muniOptions.push(`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`);
+  }
+  elements.speciesFilterMunicipality.innerHTML = muniOptions.join("");
+  if (selectedMuni) elements.speciesFilterMunicipality.value = selectedMuni;
+}
+
+function updateSpeciesFilterVisibility() {
+  const scope = elements.speciesFilterScope.value;
+  elements.speciesFilterCountyGroup.hidden = !(scope === "county" || scope === "municipality");
+  elements.speciesFilterMunicipalityGroup.hidden = scope !== "municipality";
+  elements.speciesFilterKindGroup.hidden = scope !== "featureKind";
+}
+
+function saveSpeciesFilter() {
+  if (!currentFilterTaxonId) return;
+  const scope = elements.speciesFilterScope.value;
+  const config = { scope };
+  if (scope === "county" || scope === "municipality") {
+    config.county = elements.speciesFilterCounty.value;
+  }
+  if (scope === "municipality") {
+    config.municipality = elements.speciesFilterMunicipality.value;
+  }
+  if (scope === "featureKind") {
+    config.featureKind = elements.speciesFilterKind.value;
+  }
+  
+  state.favoriteSpecies.set(currentFilterTaxonId, config);
+  localStorage.setItem("vildaleder-favorite-species", JSON.stringify([...state.favoriteSpecies.entries()]));
+  elements.speciesFilterDialog.hidden = true;
+  renderFavoritesView();
+}
+
 function bindEvents() {
   elements.welcomeClose.addEventListener("click", () => closeWelcomeDialog());
   elements.welcomeStart.addEventListener("click", () => closeWelcomeDialog());
@@ -2191,6 +2317,23 @@ function bindEvents() {
   elements.menuToggle.addEventListener("click", () => setSidebarOpen(!sidebarIsOpen()));
   elements.sidebarClose.addEventListener("click", () => setSidebarOpen(false));
   elements.sidebarScrim.addEventListener("click", () => setSidebarOpen(false));
+  
+  elements.speciesFilterClose.addEventListener("click", () => {
+    elements.speciesFilterDialog.hidden = true;
+  });
+  elements.speciesFilterSave.addEventListener("click", () => {
+    saveSpeciesFilter();
+  });
+  elements.speciesFilterScope.addEventListener("change", () => {
+    updateSpeciesFilterVisibility();
+  });
+  elements.speciesFilterCounty.addEventListener("change", (e) => {
+    populateSpeciesFilterMunicipalities(e.target.value);
+  });
+  elements.speciesFilterDialog.addEventListener("click", (event) => {
+    if (event.target === elements.speciesFilterDialog) elements.speciesFilterDialog.hidden = true;
+  });
+
   elements.nextStepButtons.forEach((button) =>
     button.addEventListener("click", () => {
       const step = Number(button.dataset.nextStep);
@@ -2464,12 +2607,42 @@ async function checkNewFavorites() {
   const lastVisit = new Date(state.lastVisit);
   let hasNew = false;
   
-  if (state.skandobs && state.favoriteSpecies.size > 0) {
-    for (const obs of state.skandobs) {
-      if (state.favoriteSpecies.has(String(obs.taxonId))) {
-        if (new Date(obs.startDate) > lastVisit) {
-          hasNew = true;
-          break;
+  if (state.skandobs && state.favoriteSpecies.size > 0 && state.skandobs.records) {
+    const obsFeatures = new Map();
+    if (state.skandobs.matches) {
+      for (const [featureId, obsIds] of Object.entries(state.skandobs.matches)) {
+        const feature = state.catalog?.trails?.find(f => f.id === featureId) 
+                     || state.catalog?.reserves?.find(f => f.id === featureId)
+                     || state.catalog?.destinations?.find(f => f.id === featureId);
+        if (!feature) continue;
+        for (const obsId of obsIds) {
+          if (!obsFeatures.has(obsId)) obsFeatures.set(obsId, []);
+          obsFeatures.get(obsId).push(feature);
+        }
+      }
+    }
+    
+    for (const obs of state.skandobs.records) {
+      const config = state.favoriteSpecies.get(String(obs.taxonId));
+      if (config) {
+        if (new Date(obs.startDate || obs.date) > lastVisit) {
+          let matchesFilter = true;
+          if (config.scope !== "sweden") {
+            const features = obsFeatures.get(obs.id || obs.sourceId) || [];
+            if (config.scope === "county") {
+              matchesFilter = features.some(f => f.county === config.county);
+            } else if (config.scope === "municipality") {
+              matchesFilter = features.some(f => f.municipalities && f.municipalities.includes(config.municipality));
+            } else if (config.scope === "featureKind") {
+              matchesFilter = features.some(f => f.featureKind === config.featureKind);
+            } else if (config.scope === "feature") {
+              matchesFilter = features.some(f => f.id === config.featureId);
+            }
+          }
+          if (matchesFilter) {
+            hasNew = true;
+            break;
+          }
         }
       }
     }

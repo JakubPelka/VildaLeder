@@ -378,6 +378,61 @@
       </section>
     </main>
 
+    <section
+      id="species-filter-dialog"
+      class="welcome-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="species-filter-title"
+      hidden
+    >
+      <div class="welcome-card" style="max-width: 400px;">
+        <button id="species-filter-close" class="welcome-close" type="button" aria-label="Close">×</button>
+        <h2 id="species-filter-title" data-i18n="spatialFilterTitle">Spatial filter</h2>
+        <p class="welcome-lead" id="species-filter-subtitle" style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-secondary);"></p>
+        
+        <div class="wizard-group">
+          <label for="species-filter-scope" data-i18n="filterScope">Scope</label>
+          <select id="species-filter-scope" class="wizard-input">
+            <option value="sweden" data-i18n="sweden">Entire Sweden</option>
+            <option value="county" data-i18n="countyScope">County</option>
+            <option value="municipality" data-i18n="municipalityScope">Municipality</option>
+            <option value="featureKind" data-i18n="featureKindScope">Feature Type</option>
+          </select>
+        </div>
+
+        <div class="wizard-group" id="species-filter-county-group" hidden>
+          <label for="species-filter-county" data-i18n="county">County</label>
+          <select id="species-filter-county" class="wizard-input">
+            <option value="" data-i18n="allCounties">All counties</option>
+          </select>
+        </div>
+
+        <div class="wizard-group" id="species-filter-municipality-group" hidden>
+          <label for="species-filter-municipality" data-i18n="municipality">Municipality</label>
+          <select id="species-filter-municipality" class="wizard-input">
+            <option value="" data-i18n="allMunicipalities">All municipalities</option>
+          </select>
+        </div>
+
+        <div class="wizard-group" id="species-filter-kind-group" hidden>
+          <label for="species-filter-kind" data-i18n="placeType">Place type</label>
+          <select id="species-filter-kind" class="wizard-input">
+            <option value="trail" data-i18n="trail">Trail</option>
+            <option value="reserve" data-i18n="natureReserve">Nature Reserve</option>
+            <option value="national_park" data-i18n="nationalPark">National Park</option>
+            <option value="observation_tower" data-i18n="observationTower">Observation Tower</option>
+            <option value="bird_hide" data-i18n="birdHide">Bird Hide</option>
+            <option value="observation_site" data-i18n="observationSite">Observation Site</option>
+          </select>
+        </div>
+
+        <div class="welcome-actions" style="margin-top: 2rem;">
+          <button id="species-filter-save" class="wizard-primary" type="button" data-i18n="save">Save</button>
+        </div>
+      </div>
+    </section>
+
     <footer>
       <span data-i18n="dataSources">Data:</span>
       <a href="https://www.openstreetmap.org/copyright" rel="noreferrer">© OpenStreetMap contributors</a>

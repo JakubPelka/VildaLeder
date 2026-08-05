@@ -1704,6 +1704,23 @@ footer {
   color: #fbbf24;
 }
 
+.edit-filter-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.5rem;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color 0.15s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+}
+
+.edit-filter-btn:hover {
+  color: var(--text-primary);
+}
+
 .favorites-view {
   display: flex;
   flex-direction: column;
