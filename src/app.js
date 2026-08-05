@@ -14,8 +14,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-map-menu-v30";
-import { translations, translator } from "./i18n.js?v=20260804-map-menu-v30";
+} from "./core.js?v=20260804-map-menu-v31";
+import { translations, translator } from "./i18n.js?v=20260804-map-menu-v31";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -32,7 +32,7 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-map-menu-v30";
+} from "./map.js?v=20260804-map-menu-v31";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
@@ -1711,6 +1711,34 @@ function renderMapObservationSummary(trail, count) {
   });
 }
 
+
+
+function clusterPopup(observations) {
+  const wrapper = node("div", "observation-popup observation-cluster-popup");
+  
+  observations.forEach((observation, index) => {
+    if (index > 0) wrapper.append(node("hr", "popup-divider"));
+    
+    const item = node("div", "popup-cluster-item");
+    item.append(node("div", "popup-title", observation.vernacularName || observation.scientificName || "—"));
+    
+    const parts = [formatDate(observation.date)];
+    if (observation.redlistCategory) parts.push(observation.redlistCategory);
+    item.append(node("div", "popup-meta", parts.join(" · ")));
+    
+    if (observation.sourceUrl) {
+      const link = node("a", "", t("openObservation"));
+      link.href = observation.sourceUrl;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      item.append(link);
+    }
+    wrapper.append(item);
+  });
+  
+  return wrapper;
+}
+
 function featureKindBadge(feature) {
   const badge = node(
     "span",
@@ -2290,6 +2318,8 @@ async function start() {
         },
         onObservationClick: (observation, lngLat) =>
           showObservationPopup(observation, lngLat, observationPopup(observation)),
+        onClusterClick: (observations, lngLat) =>
+          showObservationPopup(null, lngLat, clusterPopup(observations)),
       }),
     ]);
     state.skandobs = skandobs;

@@ -1127,6 +1127,22 @@ label > span,
   font-weight: 750;
 }
 
+.observation-cluster-popup {
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.popup-cluster-item {
+  margin: 0.5rem 0;
+}
+
+.popup-divider {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 0.5rem 0;
+}
+
 .popup-scientific {
   color: var(--muted);
   font-size: 0.78rem;
@@ -1468,7 +1484,7 @@ footer {
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    height: auto;
+    height: 100%;
     overflow: visible;
   }
 
