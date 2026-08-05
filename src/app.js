@@ -14,8 +14,8 @@ import {
   speciesCatalog,
   speciesLabel,
   weeklySeasonality,
-} from "./core.js?v=20260804-map-menu-v32";
-import { translations, translator } from "./i18n.js?v=20260804-map-menu-v32";
+} from "./core.js?v=20260804-map-menu-v33";
+import { translations, translator } from "./i18n.js?v=20260804-map-menu-v33";
 import {
   clearSearchedPlace,
   clearUserLocation,
@@ -32,14 +32,14 @@ import {
   showFeaturePopup,
   showObservationPopup,
   showSearchedPlace,
-} from "./map.js?v=20260804-map-menu-v32";
+} from "./map.js?v=20260804-map-menu-v33";
 
 const OBSERVATION_TABLE_PAGE_SIZE = 100;
 const LOCATION_REFRESH_MS = 2_000;
 const SNAPSHOT_POLL_MS = 15 * 60 * 1_000;
 const MAP_TABLE_RATIO_KEY = "vildaleder-map-table-ratio";
 const DEFAULT_MAP_TABLE_RATIO = 0.25;
-const MIN_MAP_HEIGHT = 240;
+const MIN_MAP_HEIGHT = 80;
 const MIN_TABLE_HEIGHT = 45;
 const PERIOD_PREFERENCE_KEY = "vildaleder-period";
 const CUSTOM_START_PREFERENCE_KEY = "vildaleder-custom-start";
@@ -1387,7 +1387,7 @@ function mapTableRatioBounds() {
     min,
     max: Math.max(
       min,
-      Math.min(0.65, (panelHeight - MIN_MAP_HEIGHT - resizerHeight) / panelHeight),
+      Math.min(0.90, (panelHeight - MIN_MAP_HEIGHT - resizerHeight) / panelHeight),
     ),
   };
 }
@@ -2315,8 +2315,6 @@ async function start() {
         onTrailClick: (trailId, lngLat) => {
           if (state.searchView === "criteria") showSearchResults();
           selectTrail(trailId);
-          const feature = state.catalog?.trails.find((candidate) => candidate.id === trailId);
-          if (feature) showFeaturePopup(lngLat, featurePopup(feature));
         },
         onObservationClick: (observation, lngLat) =>
           showObservationPopup(observation, lngLat, observationPopup(observation)),

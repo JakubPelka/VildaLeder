@@ -389,17 +389,9 @@ function bindMapInteractions() {
     if (clusterFeature) {
       const clusterId = Number(clusterFeature.properties.cluster_id);
       const source = map.getSource(SOURCE_OBSERVATIONS);
-      const expansionZoom = await source.getClusterExpansionZoom(clusterId);
-      if (expansionZoom > map.getMaxZoom() || map.getZoom() >= map.getMaxZoom() - 1) {
-        const leaves = await source.getClusterLeaves(clusterId, 50, 0);
-        const observations = leaves.map((f) => observationByMarkerId.get(String(f.properties.markerId))).filter(Boolean);
-        if (observations.length > 0) callbacks.onClusterClick?.(observations, event.lngLat);
-        return;
-      }
-      map.easeTo({
-        center: clusterFeature.geometry.coordinates,
-        zoom: Math.min(expansionZoom, map.getMaxZoom()),
-      });
+      const leaves = await source.getClusterLeaves(clusterId, 50, 0);
+      const observations = leaves.map((f) => observationByMarkerId.get(String(f.properties.markerId))).filter(Boolean);
+      if (observations.length > 0) callbacks.onClusterClick?.(observations, event.lngLat);
       return;
     }
     const observationFeature = features.find((feature) => feature.layer.id === LAYER_OBSERVATIONS);
