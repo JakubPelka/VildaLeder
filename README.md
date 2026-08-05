@@ -1,4 +1,5 @@
 # VildaLeder
+<img width="1024" height="559" alt="image" src="https://github.com/user-attachments/assets/324648fb-2c7a-48b2-b997-27465b9b7dd6" />
 
 **Find wildlife by trail — or find a trail by wildlife.**
 
