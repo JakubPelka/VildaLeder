@@ -199,8 +199,8 @@ def update_municipality_progress(
     progress["currentCounty"] = county.name
     progress["currentMunicipality"] = municipality
     county_progress = progress.setdefault("counties", {}).setdefault(county.name, {})
-    county_progress.setdefault("municipalities", {})[municipality] = {
-        **county_progress.get("municipalities", {}).get(municipality, {}),
+    county_progress.setdefault("municipality_progress", {})[municipality] = {
+        **county_progress.get("municipality_progress", {}).get(municipality, {}),
         "status": status,
         "updatedAt": progress["updatedAt"],
         **details,
@@ -292,7 +292,7 @@ def process_county(
         return
     for municipality_code, municipality_name in municipalities.items():
         county_progress = progress.get("counties", {}).get(county.name, {})
-        muni_status = county_progress.get("municipalities", {}).get(municipality_name, {}).get("status")
+        muni_status = county_progress.get("municipality_progress", {}).get(municipality_name, {}).get("status")
         if muni_status == "complete":
             continue
 
