@@ -2258,9 +2258,9 @@ function openSpeciesFilterDialog(taxonId, config, species) {
   
   const counties = new Set();
   if (state.catalog) {
-    state.catalog.trails.forEach(t => t.county && counties.add(t.county));
-    state.catalog.reserves.forEach(r => r.county && counties.add(r.county));
-    state.catalog.destinations.forEach(d => d.county && counties.add(d.county));
+    state.catalog.trails?.forEach(t => t.county && counties.add(t.county));
+    state.catalog.reserves?.forEach(r => r.county && counties.add(r.county));
+    state.catalog.destinations?.forEach(d => d.county && counties.add(d.county));
   }
   
   const countyOptions = ['<option value="" data-i18n="allCounties">' + t("allCounties") + '</option>'];
@@ -2285,9 +2285,9 @@ function populateSpeciesFilterMunicipalities(county, selectedMuni) {
         f.municipalities.forEach(m => municipalities.add(m));
       }
     };
-    state.catalog.trails.forEach(addMuni);
-    state.catalog.reserves.forEach(addMuni);
-    state.catalog.destinations.forEach(addMuni);
+    state.catalog.trails?.forEach(addMuni);
+    state.catalog.reserves?.forEach(addMuni);
+    state.catalog.destinations?.forEach(addMuni);
   }
   const muniOptions = ['<option value="" data-i18n="allMunicipalities">' + t("allMunicipalities") + '</option>'];
   for (const m of Array.from(municipalities).sort()) {
