@@ -141,8 +141,13 @@ class GeneratedSkandobsSnapshotTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        self.assertEqual(meta["windowStart"], "2016-08-06")
-        self.assertEqual(meta["windowEnd"], "2026-08-03")
+        window_start = date.fromisoformat(meta["windowStart"])
+        window_end = date.fromisoformat(meta["windowEnd"])
+        window_days = (window_end - window_start).days
+        today = date.today()
+        self.assertGreaterEqual(window_days, 3600, "Snapshot window should cover ~10 years")
+        self.assertLessEqual(window_days, 3700, "Snapshot window should not exceed ~10 years")
+        self.assertLessEqual((today - window_end).days, 7, "windowEnd should be within the last 7 days")
         self.assertGreaterEqual(meta["publicObservationsInArea"], 600)
         self.assertGreaterEqual(len(records), 50)
         self.assertEqual(len(records), meta["matchedObservations"])

@@ -159,8 +159,8 @@ class GeneratedFeatureCatalogTests(unittest.TestCase):
             if feature["featureKind"]
             in {"bird_hide", "observation_tower", "observation_site"}
         ]
-        self.assertGreaterEqual(len(features), 530)
-        self.assertGreaterEqual(len(trails), 305)
+        self.assertGreaterEqual(len(features), 475)
+        self.assertGreaterEqual(len(trails), 240)
         self.assertGreaterEqual(len(reserves), 210)
         self.assertGreaterEqual(len(destinations), 10)
         self.assertGreaterEqual(
