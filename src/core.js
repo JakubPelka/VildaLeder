@@ -302,6 +302,7 @@ export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchI
     const single = rankTrailsForSpecies(trails, speciesList[0], range, searchIndex, sortOptions);
     return single.map(r => ({
       trail: r.trail,
+      matchCount: 1,
       combinedScore: Math.log(1 + r.count),
       combinedDaysScore: Math.log(1 + r.days),
       lastSeen: r.lastSeen,
@@ -323,7 +324,7 @@ export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchI
 
   return trails
     .map((trail) => {
-      let allMatch = true;
+      let matchCount = 0;
       let logProduct = 1.0;
       let logDaysProduct = 1.0;
       let latestGlobal = "";
@@ -353,22 +354,22 @@ export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchI
           );
         }
 
-        if (count === 0) {
-          allMatch = false;
-          break;
-        }
-        logProduct *= Math.log(1 + count);
-        logDaysProduct *= Math.log(1 + days);
-        if (lastSeen > latestGlobal) latestGlobal = lastSeen;
         perSpeciesStats.push({ count, days, lastSeen, observations });
+
+        if (count > 0) {
+          matchCount++;
+          logProduct *= Math.log(1 + count);
+          logDaysProduct *= Math.log(1 + days);
+          if (lastSeen > latestGlobal) latestGlobal = lastSeen;
+        }
       }
 
-      if (!allMatch) return null;
-
-      const combinedScore = Math.pow(logProduct, 1.0 / speciesList.length);
-      const combinedDaysScore = Math.pow(logDaysProduct, 1.0 / speciesList.length);
+      if (matchCount === 0) return null;
+      const combinedScore = Math.pow(logProduct, 1.0 / matchCount);
+      const combinedDaysScore = Math.pow(logDaysProduct, 1.0 / matchCount);
       return {
         trail,
+        matchCount,
         combinedScore,
         combinedDaysScore,
         lastSeen: latestGlobal,
@@ -377,6 +378,7 @@ export function rankTrailsForMultipleSpecies(trails, speciesList, range, searchI
     })
     .filter((result) => result !== null)
     .sort((left, right) =>
+      (right.matchCount - left.matchCount) ||
       (getSortValue(right, sortOptions.by) - getSortValue(left, sortOptions.by)) * sortDirection ||
       right.lastSeen.localeCompare(left.lastSeen) ||
       left.trail.name.localeCompare(right.trail.name)
