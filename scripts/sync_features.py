@@ -201,7 +201,12 @@ def fetch_routes(county: str, municipalities: dict[str, str]) -> list[dict[str, 
 
     features = []
     for relation_id, relation in relations.items():
-        lines = relation_lines(relation)
+        try:
+            lines = relation_lines(relation)
+        except RefreshError as exc:
+            print(f"Skipping {relation.get('tags', {}).get('name', 'relation')} ({relation_id}): {exc}", file=sys.stderr, flush=True)
+            continue
+            
         geometry, analysis_geometry, length_km = trail_geometry(lines)
         tags = relation.get("tags", {})
         member_municipalities = sorted(memberships[relation_id])
