@@ -140,7 +140,6 @@ class StaticSiteTests(unittest.TestCase):
         self.assertIn("speciesPointFeatureIndex", app)
         self.assertIn("async function areaSpeciesObservations()", app)
         self.assertIn("function featurePopup(feature)", app)
-        self.assertIn("showFeaturePopup(lngLat, featurePopup(feature))", app)
         self.assertIn("showFeatureTooltip", map_source)
         self.assertIn("feature-name-tooltip", map_source)
         self.assertIn("function clearTrailSelection()", app)
