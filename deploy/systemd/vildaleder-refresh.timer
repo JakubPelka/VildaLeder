@@ -1,8 +1,8 @@
 [Unit]
-Description=Run the VildaLeder refresh every day at 03:00 Europe/Stockholm
+Description=Run the VildaLeder refresh every hour
 
 [Timer]
-OnCalendar=*-*-* 03:00:00 Europe/Stockholm
+OnCalendar=hourly
 Persistent=true
 AccuracySec=1min
 Unit=vildaleder-refresh.service
