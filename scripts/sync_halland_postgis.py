@@ -172,14 +172,26 @@ def fetch_window(
     end: date,
     subscription_key: str,
 ) -> tuple[str, date, date, list[dict[str, Any]], int]:
+    session = new_session()
     raw, source_total = search_observations(
-        new_session(),
+        session,
         subscription_key,
         feature["analysisGeometry"],
         start,
         end,
     )
     observations = [simplify_observation(item) for item in raw]
+    
+    # GBIF integration
+    try:
+        from refresh_data import search_gbif_observations
+        gbif_records = search_gbif_observations(
+            session, feature["analysisGeometry"], start, end
+        )
+        observations.extend(gbif_records)
+    except Exception as exc:
+        print(f"Warning: GBIF search failed for {feature['id']} window {start}-{end}: {exc}")
+
     observations = [
         observation
         for observation in observations
@@ -195,38 +207,58 @@ def upsert_taxa(
     observations: Iterable[dict[str, Any]],
     sos_source_id: int,
 ) -> None:
+    # We will get gbif_source_id dynamically
+    gbif_source_id = connection.execute("SELECT source_id FROM vildaleder.data_source WHERE source_key = 'gbif'").fetchone()
+    gbif_source_id = gbif_source_id[0] if gbif_source_id else None
+
     taxa: dict[str, dict[str, Any]] = {}
     for observation in observations:
         if observation.get("taxonId") is None:
             continue
         taxa.setdefault(str(observation["taxonId"]), observation)
     for external_id, item in taxa.items():
-        taxon_id = connection.execute(
-            """INSERT INTO vildaleder.taxon(
-                   canonical_source_id, canonical_source_taxon_id, scientific_name,
-                   organism_group, redlist_category
-               ) VALUES (%s, %s, %s, %s, %s)
-               ON CONFLICT (canonical_source_id, canonical_source_taxon_id) DO UPDATE
-               SET scientific_name = COALESCE(EXCLUDED.scientific_name, vildaleder.taxon.scientific_name),
-                   organism_group = COALESCE(EXCLUDED.organism_group, vildaleder.taxon.organism_group),
-                   redlist_category = COALESCE(EXCLUDED.redlist_category, vildaleder.taxon.redlist_category),
-                   updated_at = now()
-               RETURNING taxon_id""",
-            (
-                sos_source_id,
-                external_id,
-                item.get("scientificName"),
-                item.get("organismGroup"),
-                item.get("redlistCategory"),
-            ),
-        ).fetchone()[0]
+        is_gbif = external_id.startswith("gbif-")
+        source_id_to_use = gbif_source_id if is_gbif else sos_source_id
+        actual_external_id = external_id.replace("gbif-", "") if is_gbif else external_id
+        
+        # If it's a GBIF record, we try to find an existing taxon by scientific name first!
+        taxon_id = None
+        if is_gbif:
+            existing = connection.execute(
+                """SELECT taxon_id FROM vildaleder.taxon WHERE scientific_name = %s""",
+                (item.get("scientificName"),)
+            ).fetchone()
+            if existing:
+                taxon_id = existing[0]
+                
+        if not taxon_id:
+            taxon_id = connection.execute(
+                """INSERT INTO vildaleder.taxon(
+                       canonical_source_id, canonical_source_taxon_id, scientific_name,
+                       organism_group, redlist_category
+                   ) VALUES (%s, %s, %s, %s, %s)
+                   ON CONFLICT (canonical_source_id, canonical_source_taxon_id) DO UPDATE
+                   SET scientific_name = COALESCE(EXCLUDED.scientific_name, vildaleder.taxon.scientific_name),
+                       organism_group = COALESCE(EXCLUDED.organism_group, vildaleder.taxon.organism_group),
+                       redlist_category = COALESCE(EXCLUDED.redlist_category, vildaleder.taxon.redlist_category),
+                       updated_at = now()
+                   RETURNING taxon_id""",
+                (
+                    source_id_to_use,
+                    actual_external_id,
+                    item.get("scientificName"),
+                    item.get("organismGroup"),
+                    item.get("redlistCategory"),
+                ),
+            ).fetchone()[0]
+
         connection.execute(
             """INSERT INTO vildaleder.taxon_external_id(
                    taxon_id, source_id, external_id, is_accepted
                ) VALUES (%s, %s, %s, true)
                ON CONFLICT (source_id, external_id) DO UPDATE
                SET taxon_id = EXCLUDED.taxon_id, is_accepted = true""",
-            (taxon_id, sos_source_id, external_id),
+            (taxon_id, source_id_to_use, actual_external_id),
         )
         for name, language, kind in (
             (item.get("scientificName"), "zxx", "scientific"),
@@ -241,16 +273,23 @@ def upsert_taxa(
                    ) VALUES (%s, %s, %s, %s, %s::vildaleder.taxon_name_kind, %s, true)
                    ON CONFLICT (taxon_id, language_code, name, name_kind, source_id) DO UPDATE
                    SET name_normalized = EXCLUDED.name_normalized, is_preferred = true""",
-                (taxon_id, language, name, normalized_name(name), kind, sos_source_id),
+                (taxon_id, language, name, normalized_name(name), kind, source_id_to_use),
             )
 
 
 def stage_observations(
-    connection: psycopg.Connection[Any], observations: Iterable[dict[str, Any]]
+    connection: psycopg.Connection[Any],
+    observations: Iterable[dict[str, Any]],
+    sos_source_id: int,
+    gbif_source_id: int | None
 ) -> int:
     connection.execute(
         """CREATE TEMP TABLE sos_window_observation (
+               source_id int NOT NULL,
                source_record_id text PRIMARY KEY,
+               canonical_record_id text NOT NULL,
+               taxon_external_id text,
+               canonical_taxon_external_id text,
                taxon_external_id text,
                observed_on date NOT NULL,
                individual_count double precision,
@@ -274,16 +313,28 @@ def stage_observations(
 
     with connection.cursor().copy(
         """COPY sos_window_observation(
-               source_record_id, taxon_external_id, observed_on, individual_count,
+               source_id, source_record_id, canonical_record_id, taxon_external_id,
+               canonical_taxon_external_id, observed_on, individual_count,
                verified, uncertain_identification, latitude, longitude,
                coordinate_uncertainty_m, source_url
            ) FROM STDIN"""
     ) as copy:
         for item in observations:
+            rec_id = str(source_id(item.get("id")))
+            is_gbif = rec_id.startswith("gbif-")
+            src_id = gbif_source_id if is_gbif else sos_source_id
+            canonical_rec_id = rec_id.replace("gbif-", "") if is_gbif else rec_id
+            
+            tax_id_raw = str(item["taxonId"]) if item.get("taxonId") is not None else None
+            canonical_tax_id = tax_id_raw.replace("gbif-", "") if (tax_id_raw and is_gbif) else tax_id_raw
+
             copy.write_row(
                 (
-                    str(source_id(item.get("id"))),
-                    str(item["taxonId"]) if item.get("taxonId") is not None else None,
+                    src_id,
+                    rec_id,
+                    canonical_rec_id,
+                    tax_id_raw,
+                    canonical_tax_id,
                     str(item["date"])[:10],
                     number_or_none(item.get("individualCount")),
                     bool(item.get("verified")),
@@ -312,7 +363,9 @@ def import_window(
         sources = source_ids(connection)
         sos_source_id = sources["sos"]
         upsert_taxa(connection, observations, sos_source_id)
-        staged = stage_observations(connection, observations)
+        gbif_source_id_row = connection.execute("SELECT source_id FROM vildaleder.data_source WHERE source_key = 'gbif'").fetchone()
+        gbif_source_id = gbif_source_id_row[0] if gbif_source_id_row else None
+        staged = stage_observations(connection, observations, sos_source_id, gbif_source_id)
         inserted = connection.execute(
             """INSERT INTO vildaleder.observation(
                    canonical_key, taxon_id, observed_on, individual_count, verified,
@@ -320,7 +373,7 @@ def import_window(
                    first_seen_at, last_seen_at
                )
                SELECT
-                   'sos:' || staged.source_record_id,
+                   (CASE WHEN staged.source_record_id LIKE 'gbif-%' THEN 'gbif:' ELSE 'sos:' END) || staged.canonical_record_id,
                    external.taxon_id,
                    staged.observed_on,
                    staged.individual_count,
@@ -332,8 +385,8 @@ def import_window(
                    %s::timestamptz
                FROM sos_window_observation staged
                LEFT JOIN vildaleder.taxon_external_id external
-                 ON external.source_id = %s
-                AND external.external_id = staged.taxon_external_id
+                 ON external.source_id = staged.source_id
+                AND external.external_id = staged.canonical_taxon_external_id
                ON CONFLICT (canonical_key) DO UPDATE
                SET taxon_id = EXCLUDED.taxon_id,
                    observed_on = EXCLUDED.observed_on,
@@ -346,18 +399,18 @@ def import_window(
                    is_deleted = false,
                    updated_at = now()
                RETURNING observation_id""",
-            (generated_at, generated_at, sos_source_id),
+            (generated_at, generated_at),
         ).rowcount
         source_records = connection.execute(
             """INSERT INTO vildaleder.observation_source_record(
                    observation_id, source_id, source_record_id, source_url,
                    is_primary, first_seen_at, last_seen_at
                )
-               SELECT observed.observation_id, %s, staged.source_record_id,
+               SELECT observed.observation_id, staged.source_id, staged.canonical_record_id,
                       staged.source_url, true, %s::timestamptz, %s::timestamptz
                FROM sos_window_observation staged
                JOIN vildaleder.observation observed
-                 ON observed.canonical_key = 'sos:' || staged.source_record_id
+                 ON observed.canonical_key = (CASE WHEN staged.source_record_id LIKE 'gbif-%' THEN 'gbif:' ELSE 'sos:' END) || staged.canonical_record_id
                ON CONFLICT (source_id, source_record_id) DO UPDATE
                SET observation_id = EXCLUDED.observation_id,
                    source_url = EXCLUDED.source_url,
@@ -365,7 +418,7 @@ def import_window(
                    last_seen_at = EXCLUDED.last_seen_at,
                    is_deleted = false
                RETURNING observation_id""",
-            (sos_source_id, generated_at, generated_at),
+            (generated_at, generated_at),
         ).rowcount
         # Replace only the feature matches covered by this correction window.
         # The canonical observations themselves are intentionally append-only

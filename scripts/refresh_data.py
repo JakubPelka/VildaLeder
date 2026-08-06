@@ -356,6 +356,88 @@ def search_observation_window(
     return records
 
 
+
+def search_gbif_observations(
+    session: requests.Session,
+    corridor: dict[str, Any],
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """Fetch GBIF observations, skipping Artportalen and paginating up to the limit."""
+    import json
+    
+    # We must simplify geometry for GBIF (it uses WKT)
+    # sos_polygon_geometry already simplifies and buffers it for SOS, we can use the same logic, 
+    # but GBIF requires WKT instead of GeoJSON.
+    wgs84 = sos_polygon_geometry(corridor)
+    # Convert GeoJSON polygon to WKT
+    coords = wgs84["coordinates"][0]
+    wkt_coords = ",".join(f"{lon} {lat}" for lon, lat in coords)
+    wkt = f"POLYGON(({wkt_coords}))"
+
+    url = "https://api.gbif.org/v1/occurrence/search"
+    records = []
+    limit = 300
+    offset = 0
+    artportalen_key = "38b4c89f-584c-41bb-bd8f-cd1def33e92f"
+
+    while True:
+        params = {
+            "geometry": wkt,
+            "hasCoordinate": "true",
+            "hasGeospatialIssue": "false",
+            "country": "SE",
+            "eventDate": f"{start_date.isoformat()},{end_date.isoformat()}",
+            "limit": limit,
+            "offset": offset
+        }
+        
+        response = session.get(url, params=params, timeout=120)
+        if response.status_code != 200:
+            raise RefreshError(f"GBIF API error {response.status_code}: {response.text}")
+            
+        data = response.json()
+        results = data.get("results", [])
+        
+        for item in results:
+            if item.get("datasetKey") == artportalen_key:
+                continue
+                
+            # Normalize to match our unified structure
+            # GBIF doesn't have Dyntaxa ID, so we use gbifTaxonKey
+            date_val = item.get("eventDate", "").split("T")[0]
+            if not date_val:
+                continue
+                
+            taxon_id = item.get("speciesKey") or item.get("taxonKey")
+            if not taxon_id:
+                continue
+                
+            records.append({
+                "id": f"gbif-{item.get('gbifID')}",
+                "date": date_val,
+                "endDate": date_val,
+                "taxonId": f"gbif-{taxon_id}",
+                "scientificName": item.get("species") or item.get("scientificName"),
+                "vernacularName": item.get("vernacularName", ""),
+                "organismGroup": None,  # Will be mapped in upsert_taxa
+                "redlistCategory": None,
+                "isRedlisted": False,
+                "individualCount": item.get("individualCount", 1),
+                "latitude": item.get("decimalLatitude"),
+                "longitude": item.get("decimalLongitude"),
+                "coordinateUncertaintyInMeters": item.get("coordinateUncertaintyInMeters"),
+            })
+            
+        if data.get("endOfRecords", True) or not results:
+            break
+            
+        offset += limit
+        
+    # Deduplicate in memory
+    unique = {r["id"]: r for r in records}
+    return list(unique.values())
+
 def search_observations(
     session: requests.Session,
     subscription_key: str,

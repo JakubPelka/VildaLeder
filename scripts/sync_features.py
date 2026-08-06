@@ -154,6 +154,24 @@ def overpass_query(municipality_code: str) -> str:
     )
 
 
+
+def query_overpass(query: str, attempts: int = 3) -> dict:
+    failures = []
+    session = new_session()
+    for url in OVERPASS_URLS:
+        try:
+            return request_json(
+                session,
+                "POST",
+                url,
+                attempts=attempts,
+                data={"data": query},
+                timeout=180,
+            )
+        except Exception as exc:
+            failures.append(f"{url}: {exc}")
+    raise RefreshError(f"Overpass API failed on all endpoints: {failures}")
+
 def fetch_municipality_routes(
     municipality_code: str,
     municipality_name: str,
@@ -258,9 +276,8 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
         futures = {}
         for code, name in municipalities.items():
             futures[executor.submit(
-                request_json,
-                new_session(), "POST", OVERPASS_URLS[0], attempts=3,
-                data={"data": overpass_destinations_query(code)}, timeout=180
+                query_overpass,
+                overpass_destinations_query(code),
             )] = name
         for future in as_completed(futures):
             municipality = futures[future]
