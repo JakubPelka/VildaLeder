@@ -396,9 +396,19 @@ def search_gbif_observations(
             "offset": offset
         }
         
-        response = session.get(url, params=params, timeout=120)
-        if response.status_code != 200:
-            raise RefreshError(f"GBIF API error {response.status_code}: {response.text}")
+        import time
+        retries = 0
+        while retries < 5:
+            response = session.get(url, params=params, timeout=120)
+            if response.status_code == 200:
+                break
+            if response.status_code in (429, 503, 502, 504):
+                retries += 1
+                time.sleep(3 * retries)
+            else:
+                raise RefreshError(f"GBIF API error {response.status_code}: {response.text}")
+        else:
+            raise RefreshError(f"GBIF API error {response.status_code}: {response.text} after {retries} retries")
             
         data = response.json()
         results = data.get("results", [])
