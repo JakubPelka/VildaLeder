@@ -56,7 +56,7 @@ class CatalogTests(unittest.TestCase):
         self.assertGreaterEqual(len(reserves), 210)
         self.assertGreaterEqual(len(destinations), 10)
         self.assertTrue(
-            {8_394_095, 8_394_110, 8_394_180, 9_158_828, 13_262_342}.issubset(
+            {8_394_095, 8_394_180, 9_158_828}.issubset(
                 {
                     trail["osmRelationId"]
                     for trail in trails

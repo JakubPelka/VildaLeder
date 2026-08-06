@@ -83,7 +83,7 @@ class PostgisContractTests(unittest.TestCase):
     def test_numbered_migration_is_discoverable(self):
         self.assertEqual(
             [(version, path.name) for version, path in migration_files()],
-            [(1, "001_initial.sql"), (2, "002_destination_types.sql")],
+            [(1, "001_initial.sql"), (2, "002_destination_types.sql"), (3, "003_urban_green.sql")],
         )
 
     def test_refresh_windows_do_not_prune_canonical_observations_by_age(self):

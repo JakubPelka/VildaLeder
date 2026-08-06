@@ -377,7 +377,15 @@ def search_gbif_observations(
     elif geom.geom_type == "MultiPolygon":
         geom = MultiPolygon([orient(p, sign=1.0) for p in geom.geoms])
     
-    wkt = geom.wkt
+    from shapely.wkt import dumps
+    wkt = dumps(geom, rounding_precision=4)
+    if len(wkt) > 1000:
+        geom = geom.simplify(0.001, preserve_topology=True)
+        if geom.geom_type == "Polygon":
+            geom = orient(geom, sign=1.0)
+        elif geom.geom_type == "MultiPolygon":
+            geom = MultiPolygon([orient(p, sign=1.0) for p in geom.geoms])
+        wkt = dumps(geom, rounding_precision=4)
 
     url = "https://api.gbif.org/v1/occurrence/search"
     records = []
