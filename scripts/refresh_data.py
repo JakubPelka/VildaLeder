@@ -420,7 +420,7 @@ def search_gbif_observations(
             # Normalize to match our unified structure
             # GBIF doesn't have Dyntaxa ID, so we use gbifTaxonKey
             date_val = item.get("eventDate", "").split("T")[0]
-            if not date_val:
+            if not date_val or len(date_val) < 10:
                 continue
                 
             taxon_id = item.get("speciesKey") or item.get("taxonKey")
