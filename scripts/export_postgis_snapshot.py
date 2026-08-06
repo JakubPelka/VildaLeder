@@ -411,7 +411,13 @@ def export(args: argparse.Namespace) -> dict[str, int]:
                 feature["observationTotal"] = observation_total
                 feature["observationLimitReached"] = False
                 if feature.get("source") == "osm":
-                    feature["osmRelationId"] = int(feature["sourceFeatureId"])
+                    source_id = str(feature["sourceFeatureId"])
+                    if source_id.isdigit():
+                        feature["osmRelationId"] = int(source_id)
+                    elif "-" in source_id:
+                        feature["osmRelationId"] = int(source_id.split("-")[-1])
+                    else:
+                        feature["osmRelationId"] = 0
                     feature["osmUrl"] = feature.get("sourceUrl")
                 exported.append(feature)
                 total += observation_total
