@@ -290,7 +290,6 @@ def stage_observations(
                canonical_record_id text NOT NULL,
                taxon_external_id text,
                canonical_taxon_external_id text,
-               taxon_external_id text,
                observed_on date NOT NULL,
                individual_count double precision,
                verified boolean NOT NULL,
@@ -373,7 +372,7 @@ def import_window(
                    first_seen_at, last_seen_at
                )
                SELECT
-                   (CASE WHEN staged.source_record_id LIKE 'gbif-%' THEN 'gbif:' ELSE 'sos:' END) || staged.canonical_record_id,
+                   (CASE WHEN staged.source_record_id LIKE 'gbif-%%' THEN 'gbif:' ELSE 'sos:' END) || staged.canonical_record_id,
                    external.taxon_id,
                    staged.observed_on,
                    staged.individual_count,
@@ -410,7 +409,7 @@ def import_window(
                       staged.source_url, true, %s::timestamptz, %s::timestamptz
                FROM sos_window_observation staged
                JOIN vildaleder.observation observed
-                 ON observed.canonical_key = (CASE WHEN staged.source_record_id LIKE 'gbif-%' THEN 'gbif:' ELSE 'sos:' END) || staged.canonical_record_id
+                 ON observed.canonical_key = (CASE WHEN staged.source_record_id LIKE 'gbif-%%' THEN 'gbif:' ELSE 'sos:' END) || staged.canonical_record_id
                ON CONFLICT (source_id, source_record_id) DO UPDATE
                SET observation_id = EXCLUDED.observation_id,
                    source_url = EXCLUDED.source_url,

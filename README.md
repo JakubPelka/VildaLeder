@@ -1,7 +1,7 @@
 # VildaLeder
 <img width="1024" height="559" alt="image" src="https://github.com/user-attachments/assets/324648fb-2c7a-48b2-b997-27465b9b7dd6" />
 
-**Find wildlife by trail — or find a trail by wildlife.**
+**Optimise your wildlife experiences**
 
 VildaLeder is a Sweden-first discovery tool that connects marked walking and
 hiking routes with recent biodiversity observations. The first product will be
@@ -93,269 +93,29 @@ areas, observation infrastructure, national parks, or all places. Sweden-wide sp
 such as harfågel or järv) requires the Phase 4 data platform described in the
 roadmap.
 
-## Try the pilot
+## Features and User Interface
 
-The application is a no-build static site. Serve the repository over HTTP (ES
-modules and `fetch` do not work reliably from a `file://` URL):
+The application is a responsive web app built to present data smoothly without requiring user accounts or logins. The interface supports English, Swedish, and Polish.
 
-```bash
-python3 -m http.server 8000
-```
+### Exploration Journeys
+- **Place-first**: An interactive map allows you to select trails, nature reserves, or observation infrastructure. The application fetches observations within a 200m buffer and visualizes recent sightings.
+- **Species-first**: A dedicated search enables finding specific animals or plants using scientific or vernacular names. The application then highlights the trails and reserves where the species has been observed.
 
-Then open <http://localhost:8000>. The interface supports English, Swedish, and
-Polish; place-first and species-first search; an explicit map-layer choice plus
-optional county/municipality filters; map selection; interactive Red List classes; and day, 30-day, 90-day,
-365-day, or custom date ranges within the ten-year snapshot. Counts are computed
-from daily aggregates and therefore change with every selected date range.
-The area panel also has a Sweden-only place-name lookup for towns, villages,
-hamlets, and other named OSM features. It sends a request only after an explicit
-form submission, never as autocomplete, limits results to five, throttles
-uncached requests to less than one per second per browser, and caches small
-results locally for 30 days. The Halland pilot uses the public Nominatim service
-under its usage policy; national or commercial traffic must move behind a
-switchable cached proxy or a self-hosted/contracted geocoder.
-The custom search range is capped at the most recent ten years. Overlapping
-observation coordinates are clustered with their record count. The sortable
-panel below the map groups the selected place's observations into one row per
-species, with count and last-seen date; expanding a species reveals weekly
-seasonality and every underlying source record, and selecting a date zooms to
-the point. Custom date
-inputs are shown only after selecting the custom-period preset, and editing
-either date always activates that preset. The map's location control displays
-the user's browser-provided position and accuracy, then refreshes the marker
-every two seconds until tracking is stopped.
-Place-first details are shown once in that panel rather than duplicated in the
-sidebar. In the opposite journey, a species search shows the same weekly chart for all matching
-public observations in the active area and selected time range, then recalculates
-it for a selected place.
-Species-first search loads a bucketed, time-partitioned SOS point index and
-shows every deduplicated observation of the chosen species that intersects at
-least one currently filtered trail/reserve buffer. The same observation is
-drawn once even when several tourist objects overlap; selecting one object then
-narrows the map and table to that object's matches. Scattered observations
-outside all supported destination buffers are intentionally not included.
-Hovering a destination on the map shows its name. Clicking it selects the
-place and opens a compact source card with its municipality, size or analysis
-buffer, source description, navigation/share actions, and an OSM, Skyddad natur,
-or Naturvårdsverket link. The map legend can be collapsed.
-On desktop, drag the separator between the map and table to choose how much room
-each view receives. Arrow keys resize it for keyboard users, double-click resets
-the default 75/25 split, and the preference is retained in the browser.
+### Advanced Filtering and Data Visualization
+- **Dynamic Time Ranges**: Filter observations by the last 24 hours, 30 days, 90 days, 365 days, or custom date ranges within a ten-year snapshot.
+- **Red List Context**: Observations are sorted and grouped by Swedish Red List categories, bringing attention to endangered and vulnerable species.
+- **Interactive Map Layers**: Selectively show or hide trails, reserves, bird hides, observation towers, and national parks. Opt-in browser geolocation tracks your position on the map.
+- **Rich Data Representation**: Expandable tables show observation counts, dates, seasonality charts, and direct links to source records.
 
-### Refresh the public data snapshot
+## System Architecture
 
-Install the geospatial dependencies in a virtual environment:
+VildaLeder processes data from several providers to build a cohesive nature map:
+- **Routes and Areas**: OpenStreetMap relations, Naturvårdsverket trails, and Naturvårdsregistret reserves.
+- **Observations**: SLU Species Observation System (Artportalen), Skandobs predator reports, and global GBIF records.
+- **Processing**: Python geospatial routines buffer trails and perform spatial intersections with observation coordinates.
+- **Data Platform**: A PostGIS database stores the deduplicated canonical observations. Daily aggregate partitions are generated and deployed as static JSON files.
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-```
-
-The production refresh is PostGIS-first. To run its complete Halland pipeline
-manually, provide the SOS key by file and let the script discover the database
-password from the local Docker container:
-
-```bash
-SOS_SUBSCRIPTION_KEY_FILE=/absolute/path/to/specieskey.txt \
-  scripts/server_refresh.sh
-```
-
-`SOS_SUBSCRIPTION_KEY` can be used instead of a file. Neither form is written to
-`data/catalog.json`; `.env*`, `secrets/`, and raw responses are ignored by Git.
-The job refreshes Halland trails, protected areas, and birding destinations,
-invalidates observation coverage
-when geometry changes, completes ten-year coverage for new places, reconciles a
-rolling 90-day correction window, refreshes Skandobs on a best-effort basis,
-verifies PostGIS, and atomically exports the full public snapshot. Date windows
-are recursively split before the SOS 10,000-result pagination edge and records
-are deduplicated by occurrence ID. Publication is refused if even one spatial
-feature is missing, the export is not exactly 3,650 days, a data file approaches
-GitHub's 100 MB limit, or the test suite fails.
-
-The 3,650-day limit is a query and public-export boundary, not a PostGIS
-retention policy. Daily refreshes upsert new and corrected records but do not
-delete an observation merely because it has aged out of the public ten-year
-window. Consequently, after another year the database can retain eleven years
-of history while the browser still offers at most the most recent ten years.
-Historical removal is reserved for explicit source corrections, withdrawals,
-privacy requirements, or a separately approved retention policy.
-
-The export includes place-oriented partitions and a second deduplicated
-species-point index. The browser bootstrap contains only taxon metadata and
-manifests; daily place aggregates are split by place type and taxon rankings
-use 256 stable buckets. The client downloads a place aggregate only after the
-user enables that layer and one small taxon-ranking bucket only after a species
-is resolved. Species point evidence remains time-partitioned with compact
-feature ordinals, so a species map respects län/kommun and place-type filters
-without downloading every selected place's full history.
-
-On the always-on server, install the checked-in user timer and put only local
-paths and non-secret tuning values in its ignored environment file:
-
-```bash
-mkdir -p ~/.config/vildaleder
-$EDITOR ~/.config/vildaleder/server-refresh.env
-chmod 600 ~/.config/vildaleder/server-refresh.env
-systemctl --user link "$PWD/deploy/systemd/vildaleder-refresh.service"
-systemctl --user link "$PWD/deploy/systemd/vildaleder-refresh.timer"
-systemctl --user daemon-reload
-systemctl --user enable --now vildaleder-refresh.timer
-```
-
-The environment file normally sets `SOS_SUBSCRIPTION_KEY_FILE`,
-`VILDA_REFRESH_PYTHON`, and `VILDA_DB_CONTAINER`. The timer runs at 03:00 in
-`Europe/Stockholm` and is persistent across downtime. Daily runs reconcile the
-last 90 days; day 1 of each month performs a forced ten-year reconciliation.
-The job works in a fresh clone, commits only a complete verified snapshot, and
-pushes `main`, which starts the GitHub Pages deployment. Open clients poll the
-deployed catalog every 15 minutes and reload only after the complete snapshot's
-generation marker changes.
-
-Refresh the Halland spatial catalog independently (no SOS credential required):
-
-```bash
-.venv/bin/python scripts/sync_features.py
-```
-
-This queries OSM per municipality, Naturvårdsregistret, and Naturvårdsverket's
-official outdoor-recreation WFS,
-then writes `data/features.json`. Set `DATABASE_URL` or pass `--database-url` to
-upsert the same destination geometries into PostGIS. On the always-on
-server, reuse the checked catalog without making upstream requests:
-
-```bash
-.venv/bin/python scripts/sync_features.py --from-file data/features.json \
-  --database-url "$DATABASE_URL"
-```
-
-The local server routine refreshes both the observation snapshot and this
-spatial catalog.
-
-Refresh the experimental public Skandobs snapshot after the feature catalog:
-
-```bash
-.venv/bin/python scripts/sync_skandobs.py
-```
-
-The adapter first requests lightweight public map points, fetches details only
-for points inside a trail/reserve analysis geometry, and writes
-`data/skandobs.json` atomically. The upstream response contains personal fields;
-the export uses an explicit whitelist and never copies reporter/contact data,
-comments, or validator identities. An API failure leaves the previous snapshot
-unchanged and does not block the other daily refreshes.
-
-Run the test suite with:
-
-```bash
-.venv/bin/python -m unittest discover -s tests -v
-```
-
-### PostGIS data platform
-
-The accepted Sweden-wide target is PostgreSQL/PostGIS, not a browser-sized copy
-per route. A canonical observation is stored once and linked spatially to any
-number of trails and nature reserves. Daily `taxon × feature × date`
-aggregates serve responsive period counts and rankings. Provider records remain
-separate so SOS/Artportalen and GBIF provenance can be retained and cross-source
-duplicates can later resolve to one canonical observation.
-
-GBIF occurrence enrichment is a required part of the Sweden-wide data platform,
-with SOS/Artportalen retained as the fresher Swedish baseline. The GBIF adapter
-will exclude GBIF's
-[complete Artportalen dataset](https://www.gbif.org/dataset/38b4c89f-584c-41bb-bd8f-cd1def33e92f)
-by its stable dataset key (`38b4c89f-584c-41bb-bd8f-cd1def33e92f`) before import. The
-remaining GBIF datasets add observations from other publishers. VildaLeder will
-retain `gbifID`, `datasetKey`, `occurrenceID`, `catalogNumber`, licence, and
-publisher; records are merged across providers only when a shared stable
-identifier proves that they represent the same observation. Similar species,
-date, and coordinates alone are not sufficient because distinct observations
-can legitimately occur together. Halland can be piloted through the public
-[Occurrence Search API](https://techdocs.gbif.org/en/openapi/v1/occurrence); a
-Sweden-wide backfill should use GBIF's authenticated
-[asynchronous download service](https://techdocs.gbif.org/en/data-use/api-downloads)
-because search paging is capped at 300 records and 100,000 results per query.
-
-For a local development database, copy `.env.example` to the ignored `.env`, set
-a local password, and run:
-
-```bash
-docker compose up -d database
-.venv/bin/python scripts/migrate_postgis.py
-.venv/bin/python scripts/import_postgis.py
-.venv/bin/python scripts/sync_features.py --from-file data/features.json
-.venv/bin/python scripts/import_skandobs.py
-.venv/bin/python scripts/verify_postgis.py
-```
-
-The database port is bound to `127.0.0.1` only. A self-hosted deployment exposes
-an HTTPS API through a reverse proxy or outbound tunnel; PostgreSQL port 5432 is
-never exposed publicly. See
-[the PostGIS data-platform decision](docs/architecture/postgis-data-platform.md)
-for schema, multilingual taxonomy, daily sync, reserve support, local-hosting,
-and migration details.
-
-To populate the canonical store beyond the original Halmstad snapshot, run the
-resumable Halland synchroniser. It queries bounded one-year windows and commits
-each completed feature window independently, so a network or API interruption
-does not discard earlier work. A municipality can be completed first for staged
-testing:
-
-```bash
-SOS_SUBSCRIPTION_KEY_FILE=/absolute/path/to/specieskey.txt \
-DATABASE_URL="$DATABASE_URL" \
-.venv/bin/python scripts/sync_halland_postgis.py --municipality Kungsbacka
-```
-
-Omit `--municipality` for all Halland; Kungsbacka is prioritised by default. The
-API key remains server-side. After a complete window has been recorded, export
-lazy per-feature partitions for the GitHub Pages client:
-
-```bash
-DATABASE_URL="$DATABASE_URL" \
-.venv/bin/python scripts/export_postgis_snapshot.py
-```
-
-The exporter includes only features marked with a complete SOS window. A
-partially downloaded trail or reserve is therefore never published as if it had
-complete observation coverage.
-
-### Private Sweden-wide backfill
-
-The national bootstrap is deliberately isolated from the Halland pilot in a
-second PostgreSQL database, normally `vildaleder_sweden`. Initialise it from the
-verified Halland database, then run the resumable backfill:
-
-```bash
-SOS_SUBSCRIPTION_KEY_FILE=/absolute/path/to/specieskey.txt \
-scripts/run_sweden_backfill.sh
-```
-
-The job obtains the current municipality list from SCB, discovers named OSM
-hiking/foot routes municipality by municipality, downloads walking trails and
-birding facilities from Naturvårdsverket, loads current reserve and national-park
-boundaries from Naturvårdsregistret, and requests SOS observations in bounded
-feature/year windows. County catalogs and `progress.json` stay under
-`~/.local/state/vildaleder-sweden`; the job does not call the static exporter,
-Git, or GitHub Pages. The Halland daily timer continues to use the original
-`vildaleder` database. Later deployment can switch the API database DSN only
-after the national database passes coverage and performance checks.
-
-GBIF is used as a taxonomy enrichment source for English and Polish vernacular
-names:
-
-```bash
-DATABASE_URL="$DATABASE_URL" \
-.venv/bin/python scripts/enrich_gbif_taxonomy.py
-```
-
-The nightly Halland refresh repeats this enrichment for newly encountered taxa.
-Results are cached outside the repository under `~/.cache/vildaleder`, and the
-static search index exports available `sv`, `en`, and `pl` names. Observation
-ingestion still treats SOS/Artportalen as the Swedish baseline: it is fresher and
-retains the direct source evidence used by the product. The occurrence importer
-is not implemented yet; it is the required complementary ingestion step after
-the SOS national baseline and will exclude GBIF's complete Artportalen dataset
-to avoid importing the same feed twice.
+For full technical details, setup instructions, and deployment guides, please see the [Development Setup Guide](docs/architecture/development.md).
 
 ## Product principles
 

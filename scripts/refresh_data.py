@@ -366,14 +366,18 @@ def search_gbif_observations(
     """Fetch GBIF observations, skipping Artportalen and paginating up to the limit."""
     import json
     
-    # We must simplify geometry for GBIF (it uses WKT)
-    # sos_polygon_geometry already simplifies and buffers it for SOS, we can use the same logic, 
-    # but GBIF requires WKT instead of GeoJSON.
-    wgs84 = sos_polygon_geometry(corridor)
-    # Convert GeoJSON polygon to WKT
-    coords = wgs84["coordinates"][0]
-    wkt_coords = ",".join(f"{lon} {lat}" for lon, lat in coords)
-    wkt = f"POLYGON(({wkt_coords}))"
+    from shapely.geometry import shape, MultiPolygon
+    from shapely.geometry.polygon import orient
+
+    geom = shape(corridor)
+    # GBIF requires counter-clockwise exterior rings (Right-hand rule).
+    # Projection transforms may have inverted the orientation.
+    if geom.geom_type == "Polygon":
+        geom = orient(geom, sign=1.0)
+    elif geom.geom_type == "MultiPolygon":
+        geom = MultiPolygon([orient(p, sign=1.0) for p in geom.geoms])
+    
+    wkt = geom.wkt
 
     url = "https://api.gbif.org/v1/occurrence/search"
     records = []
