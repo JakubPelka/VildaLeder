@@ -317,7 +317,7 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                         "id": f"osm-{element_type}-{element_id}",
                         "featureKind": feature_kind,
                         "source": "osm",
-                        "sourceFeatureId": str(element_id),
+                        "sourceFeatureId": f"{element_type}-{element_id}",
                         "name": name,
                         "county": county,
                         "municipalities": [municipality],
