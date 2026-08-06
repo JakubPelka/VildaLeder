@@ -265,7 +265,7 @@ def overpass_destinations_query(municipality_code: str) -> str:
         'nwr(area.searchArea)["landuse"="cemetery"];'
         'nwr(area.searchArea)["leisure"="garden"];'
         ');'
-        "out center;"
+        'out center geom;'
     )
 
 def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[dict[str, Any]]:
@@ -307,6 +307,21 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                     
                     if lat is None or lon is None:
                         continue
+
+                    if feature_kind == "urban_green":
+                        polygon_geometry = element.get("geometry", [])
+                        if not polygon_geometry:
+                            continue
+                        try:
+                            # Build polygon and calculate area in square meters using SWEREF 99 TM
+                            poly_points = [(pt["lon"], pt["lat"]) for pt in polygon_geometry]
+                            if len(poly_points) >= 3:
+                                area_polygon = Polygon(poly_points)
+                                area_sqm = transform(to_sweref, area_polygon).area
+                                if area_sqm < 10000:
+                                    continue
+                        except BaseException:
+                            pass
                         
                     point = Point(lon, lat)
                     analysis = transform(to_wgs84, transform(to_sweref, point).buffer(BUFFER_METERS))
