@@ -289,7 +289,7 @@ class StaticSiteTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertNotIn("schedule:", workflow)
-        self.assertIn("OnCalendar=hourly", timer)
+        self.assertIn("OnCalendar=Sat 22:00", timer)
         self.assertIn("scripts/sync_features.py", refresh)
         self.assertIn("scripts/sync_halland_postgis.py", refresh)
         self.assertIn("scripts/sync_skandobs.py", refresh)

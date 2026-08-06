@@ -6,11 +6,7 @@ readonly PYTHON_BIN="${VILDA_REFRESH_PYTHON:-${SCRIPT_ROOT}/.venv/bin/python}"
 readonly REFRESH_REMOTE="${VILDA_REFRESH_REMOTE:-https://github.com/JakubPelka/VildaLeder.git}"
 readonly REFRESH_BRANCH="${VILDA_REFRESH_BRANCH:-main}"
 readonly DB_CONTAINER="${VILDA_DB_CONTAINER:-vildaleder_database_1}"
-if [[ "$(date +%u)" == "6" ]]; then
-  readonly ROLLING_DAYS="${VILDA_ROLLING_DAYS:-30}"
-else
-  readonly ROLLING_DAYS="${VILDA_ROLLING_DAYS:-2}"
-fi
+readonly ROLLING_DAYS="${VILDA_ROLLING_DAYS:-30}"
 readonly FULL_RECONCILE_DAY="${VILDA_FULL_RECONCILE_DAY:-01}"
 readonly WORK_ROOT="${VILDA_REFRESH_WORK_ROOT:-${XDG_CACHE_HOME:-${HOME}/.cache}/vildaleder-refresh}"
 readonly LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/vildaleder-server-refresh.lock"

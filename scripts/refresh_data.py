@@ -406,13 +406,15 @@ def search_gbif_observations(
         
         import time
         retries = 0
-        while retries < 5:
+        while retries < 8:
+            time.sleep(0.5)  # Throttle requests slightly
             response = session.get(url, params=params, timeout=120)
             if response.status_code == 200:
                 break
             if response.status_code in (429, 503, 502, 504):
                 retries += 1
-                time.sleep(3 * retries)
+                print(f"GBIF rate limit hit, sleeping {15 * retries}s...", file=sys.stderr)
+                time.sleep(15 * retries)
             else:
                 raise RefreshError(f"GBIF API error {response.status_code}: {response.text}")
         else:
