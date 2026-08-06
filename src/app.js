@@ -1280,10 +1280,6 @@ function renderResolvedTrailDetails(trail, observations) {
   links.append(osmLink, clearSelection);
   appendLocationActions(links, trail);
   header.append(links);
-  if (trail.description) header.append(node("p", "feature-description", trail.description));
-  if (trail.marking) {
-    header.append(node("p", "feature-description", trail.marking));
-  }
   elements.trailDetails.append(header);
 
   if (!trail.observationCoverage) {
@@ -2158,6 +2154,7 @@ function renderFavoritesView() {
           }
           elements.featureKind.dispatchEvent(new Event("change"));
           selectTrail(trail.id);
+          setSidebarOpen(false);
         });
         item.append(btn);
         elements.favoriteTrailsList.append(item);
@@ -2266,6 +2263,7 @@ function renderFavoritesView() {
           } else {
             renderAll();
           }
+          setSidebarOpen(false);
         });
         item.append(btn);
         elements.favoriteSpeciesList.append(item);

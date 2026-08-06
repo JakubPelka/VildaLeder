@@ -850,14 +850,19 @@ def build_catalog(
 def deduplicate_features(primary: list[dict[str, Any]], secondary: list[dict[str, Any]]) -> list[dict[str, Any]]:
     # primary is kept, secondary is dropped if it intersects a primary feature significantly.
     kept = list(primary)
-    primary_shapes = [shape(p["analysisGeometry"]) for p in primary]
+    primary_shapes = [(p, shape(p["analysisGeometry"])) for p in primary]
     for sec in secondary:
         sec_shape = shape(sec["analysisGeometry"])
+        sec_name = sec["name"].casefold()
         is_duplicate = False
-        for pri_shape in primary_shapes:
+        for pri, pri_shape in primary_shapes:
             if sec_shape.intersects(pri_shape):
                 intersection = sec_shape.intersection(pri_shape)
-                if intersection.area / min(sec_shape.area, pri_shape.area) > 0.85:
+                ratio = intersection.area / min(sec_shape.area, pri_shape.area)
+                if ratio > 0.85:
+                    is_duplicate = True
+                    break
+                elif ratio > 0.30 and sec_name == pri["name"].casefold():
                     is_duplicate = True
                     break
         if not is_duplicate:
