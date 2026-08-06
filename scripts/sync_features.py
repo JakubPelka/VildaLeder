@@ -265,7 +265,7 @@ def overpass_destinations_query(municipality_code: str) -> str:
         'nwr(area.searchArea)["landuse"="cemetery"];'
         'nwr(area.searchArea)["leisure"="garden"];'
         ');'
-        "out center geom;"
+        "out center;"
     )
 
 def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[dict[str, Any]]:

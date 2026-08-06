@@ -171,7 +171,7 @@ def export_species_partitions(
                  ON external.taxon_id = observed.taxon_id
                 AND external.source_id = source.source_id
                WHERE matched.feature_id = ANY(%s)
-                 AND source.source_key = 'sos'
+                 AND source.source_key IN ('sos', 'gbif')
                  AND NOT observed.is_deleted
                  AND observed.location_is_public
                  AND NOT record.is_deleted
@@ -230,7 +230,7 @@ def export_feature_partitions(
              ON external.taxon_id = observed.taxon_id
             AND external.source_id = source.source_id
            WHERE matched.feature_id = %s
-             AND source.source_key = 'sos'
+             AND source.source_key IN ('sos', 'gbif')
              AND NOT observed.is_deleted
              AND observed.location_is_public
              AND NOT record.is_deleted
@@ -282,7 +282,7 @@ def search_index(
              ON external.taxon_id = observed.taxon_id
             AND external.source_id = source.source_id
            WHERE matched.feature_id = ANY(%s)
-             AND source.source_key = 'sos'
+             AND source.source_key IN ('sos', 'gbif')
              AND NOT observed.is_deleted
              AND observed.location_is_public
              AND NOT record.is_deleted
@@ -326,7 +326,7 @@ def search_index(
                        ORDER BY language_code, is_preferred DESC, taxon_name_id
                    ) preferred_names
                ) vernacular ON true
-               WHERE source.source_key = 'sos' AND external.external_id = ANY(%s)""",
+               WHERE source.source_key IN ('sos', 'gbif') AND external.external_id = ANY(%s)""",
             (list(taxon_counts),),
         ).fetchall()
         for external_id, scientific_name, scientific_alias, names, group, category in metadata_rows:
@@ -378,7 +378,7 @@ def export(args: argparse.Namespace) -> dict[str, int]:
                    SELECT 1
                    FROM vildaleder.observation_source_record record
                    JOIN vildaleder.data_source source USING (source_id)
-                   WHERE source.source_key = 'sos' AND NOT record.is_deleted
+                   WHERE source.source_key IN ('sos', 'gbif') AND NOT record.is_deleted
                )"""
         ).fetchone()[0]
         if not has_sos_observations:
