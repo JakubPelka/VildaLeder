@@ -99,6 +99,8 @@ const state = {
   selectedSpeciesList: [],
   speciesSortBy: "days",
   speciesSortDir: "desc",
+  trailSortBy: "observations",
+  trailSortDir: "desc",
   selectedTrailId: null,
   locationTracking: false,
   locationRequestPending: false,
@@ -183,6 +185,9 @@ const elements = {
   speciesSortControls: document.querySelector("#species-sort-controls"),
   speciesSortBy: document.querySelector("#species-sort-by"),
   speciesSortDir: document.querySelector("#species-sort-dir"),
+  trailSortControls: document.querySelector("#trail-sort-controls"),
+  trailSortBy: document.querySelector("#trail-sort-by"),
+  trailSortDir: document.querySelector("#trail-sort-dir"),
   trailResults: document.querySelector("#trail-results"),
   speciesResults: document.querySelector("#species-results"),
   trailDetailsHome: document.querySelector("#trail-details-home"),
@@ -835,6 +840,7 @@ function renderAll() {
 
 function renderTrailResults() {
   elements.trailResults.replaceChildren();
+  if (elements.trailSortControls) elements.trailSortControls.hidden = true;
   if (!state.featureKind) {
     elements.trailResults.append(node("p", "empty-state", t("choosePlaceTypePrompt")));
     return;
@@ -845,13 +851,23 @@ function renderTrailResults() {
     elements.trailResults.append(node("p", "empty-state", t("noTrails")));
     return;
   }
-  
+
+  if (elements.trailSortControls) elements.trailSortControls.hidden = false;
+
+  const direction = state.trailSortDir === "desc" ? 1 : -1;
   trails.sort((a, b) => {
     const statsA = indexedTrailStats(state.searchIndex, a.id, range);
     const statsB = indexedTrailStats(state.searchIndex, b.id, range);
-    if (statsB.observations !== statsA.observations) {
-      return (statsB.observations || 0) - (statsA.observations || 0);
+    
+    let diff = 0;
+    if (state.trailSortBy === "species") {
+      diff = (statsB.species || 0) - (statsA.species || 0);
+    } else {
+      diff = (statsB.observations || 0) - (statsA.observations || 0);
     }
+    
+    if (diff !== 0) return diff * direction;
+    
     return a.name.localeCompare(b.name);
   });
   
@@ -867,7 +883,7 @@ function renderTrailResults() {
     title.prepend(featureKindBadge(trail));
     button.append(title);
     const dimension = featureDimension(trail);
-    const evidence = trail.observationCoverage
+    const evidence = (trail.observationCoverage || trail.observationFiles)
       ? !placeRankingReady(trail)
         ? t("loadingCounts")
         : `${t("observations", { count: formatNumber(stats.observations) })}${
@@ -1169,10 +1185,21 @@ async function renderAreaSpeciesObservations(request) {
   );
 }
 
+function getFeatureById(id) {
+  if (!state.catalog) return undefined;
+  for (const list of [state.catalog.trails, state.catalog.reserves, state.catalog.destinations]) {
+    if (list) {
+      const found = list.find(f => f.id === id);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
 async function renderTrailDetails() {
   if (!state.catalog) return;
   const request = ++state.detailsRequest;
-  const trail = state.catalog.trails.find((candidate) => candidate.id === state.selectedTrailId);
+  const trail = getFeatureById(state.selectedTrailId);
   elements.trailDetails.replaceChildren();
   if (!trail) {
     elements.trailDetails.append(node("p", "empty-state", t("selectTrail")));
@@ -1187,7 +1214,7 @@ async function renderTrailDetails() {
     }
     return;
   }
-  if (!trail.observationCoverage) {
+  if (!(trail.observationCoverage || trail.observationFiles)) {
     setObservationColors(null);
     setObservations([]);
     setObservationTableRows([]);
@@ -1262,7 +1289,7 @@ function renderResolvedTrailDetails(trail, observations) {
     node(
       "p",
       "details-meta",
-      trail.observationCoverage
+      (trail.observationCoverage || trail.observationFiles)
         ? `${municipalities}, ${trail.county} · ${dimension} · ${t("observations", {
             count: formatNumber(displayedObservations.length),
           })} · ${t("species", { count: formatNumber(taxa.length) })}`
@@ -1282,7 +1309,7 @@ function renderResolvedTrailDetails(trail, observations) {
   header.append(links);
   elements.trailDetails.append(header);
 
-  if (!trail.observationCoverage) {
+  if (!(trail.observationCoverage || trail.observationFiles)) {
     elements.trailDetails.append(node("p", "data-caveat", t("observationCoverageNote")));
   } else {
     if (!trail.fullObservationCoverage) {
@@ -1382,9 +1409,7 @@ function renderObservationTable() {
   elements.mapTableResizer.hidden = !hasSelection;
   if (!hasSelection) return;
 
-  const selectedObject = state.catalog.trails.find(
-    (feature) => feature.id === state.selectedTrailId,
-  );
+  const selectedObject = getFeatureById(state.selectedTrailId);
   elements.observationTableTitle.textContent = t("visibleObservationsTitle", {
     place: selectedObject?.name || "",
   });
@@ -1773,7 +1798,7 @@ function renderMapObservationSummary(trail, count) {
     return;
   }
   elements.mapObservationSummary.hidden = false;
-  if (!trail.observationCoverage) {
+  if (!(trail.observationCoverage || trail.observationFiles)) {
     elements.mapObservationSummary.textContent = t("mapObservationSyncPending", {
       trail: trail.name,
     });
@@ -1929,7 +1954,7 @@ function selectTrail(trailId) {
   void renderSpeciesResults();
   void renderTrailDetails();
   updateMapStyles();
-  fitTrail(state.catalog.trails.find((trail) => trail.id === trailId));
+  fitTrail(getFeatureById(trailId));
 }
 
 function clearTrailSelection() {
@@ -1956,6 +1981,10 @@ function resetFilters() {
   state.speciesSortDir = "desc";
   if (elements.speciesSortBy) elements.speciesSortBy.value = "days";
   if (elements.speciesSortDir) elements.speciesSortDir.textContent = "⬇️";
+  state.trailSortBy = "observations";
+  state.trailSortDir = "desc";
+  if (elements.trailSortBy) elements.trailSortBy.value = "observations";
+  if (elements.trailSortDir) elements.trailSortDir.textContent = "⬇️";
   state.selectedTrailId = null;
   state.loadedSelection = null;
   state.placeSearchRequest += 1;
@@ -2119,7 +2148,7 @@ function renderFavoritesView() {
   } else {
     elements.noFavoriteTrails.hidden = true;
     for (const id of state.favoriteTrails) {
-      const trail = state.catalog.trails.find(t => t.id === id);
+      const trail = getFeatureById(id);
       if (trail) {
         const item = node("div", "species-result-item");
         const btn = node("button", "result-card");
@@ -2585,6 +2614,21 @@ function bindEvents() {
     });
   }
 
+  if (elements.trailSortBy) {
+    elements.trailSortBy.addEventListener("change", (e) => {
+      state.trailSortBy = e.target.value;
+      void renderTrailResults();
+    });
+  }
+
+  if (elements.trailSortDir) {
+    elements.trailSortDir.addEventListener("click", () => {
+      state.trailSortDir = state.trailSortDir === "desc" ? "asc" : "desc";
+      elements.trailSortDir.textContent = state.trailSortDir === "desc" ? "⬇️" : "⬆️";
+      void renderTrailResults();
+    });
+  }
+
   // Close autocomplete when clicking outside
   document.addEventListener("click", (e) => {
     if (elements.speciesSearch && elements.speciesSuggestions) {
@@ -2771,10 +2815,10 @@ async function checkNewFavorites() {
 
   if (!hasNew && state.favoriteTrails.size > 0) {
     for (const trailId of state.favoriteTrails) {
-      const trail = state.catalog.trails.find(t => t.id === trailId);
-      if (trail && trail.observationCoverage) {
+      const trail = getFeatureById(trailId);
+      if (trail && (trail.observationCoverage || trail.observationFiles)) {
         try {
-          const files = trail.observationCoverage.files;
+          const files = (trail.observationCoverage && trail.observationCoverage.files) || trail.observationFiles;
           if (files && files.length > 0) {
             const firstFile = files[0];
             const data = await loadJson(`data/observations/${firstFile}`);
