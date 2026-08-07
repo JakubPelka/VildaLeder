@@ -71,6 +71,7 @@ def parse_args() -> argparse.Namespace:
         help="Process this municipality first during a Halland-wide run.",
     )
     parser.add_argument("--force", action="store_true", help="Repeat completed windows")
+    parser.add_argument("--no-gbif", action="store_true", help="Skip fetching GBIF data")
     return parser.parse_args()
 
 

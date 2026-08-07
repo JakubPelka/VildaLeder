@@ -7,6 +7,7 @@ const LAYER_CORRIDORS = "trail-corridors-fill";
 const LAYER_CORRIDOR_OUTLINES = "trail-corridors-outline";
 const LAYER_RESERVES = "nature-reserves-fill";
 const LAYER_NATIONAL_PARKS = "national-parks-fill";
+const LAYER_URBAN_GREEN = "urban-green-fill";
 const LAYER_TRAILS = "trails-line";
 const LAYER_DESTINATIONS = "nature-destinations-circle";
 const LAYER_OBSERVATION_CLUSTERS = "observations-clusters";
@@ -198,6 +199,31 @@ function addDataLayers() {
       "fill-opacity": ["case", ["==", ["get", "selected"], true], 0.5, ["boolean", ["feature-state", "hover"], false], 0.45, 0.24],
     },
   });
+
+  map.addLayer({
+    id: LAYER_URBAN_GREEN,
+    type: "fill",
+    source: SOURCE_TRAILS,
+    filter: [
+      "all",
+      ["==", ["get", "featureKind"], "urban_green"],
+      ["==", ["get", "visible"], true],
+    ],
+    paint: {
+      "fill-color": ["case", ["==", ["get", "selected"], true], "#d56a13", ["boolean", ["feature-state", "hover"], false], "#ff8c00", "#7cb342"],
+      "fill-opacity": [
+        "case",
+        ["==", ["get", "visible"], false],
+        0.01,
+        ["==", ["get", "selected"], true],
+        0.45,
+        ["boolean", ["feature-state", "hover"], false],
+        0.40,
+        0.18,
+      ],
+    },
+  });
+
   map.addLayer({
     id: LAYER_TRAILS,
     type: "line",
@@ -369,6 +395,7 @@ function bindMapInteractions() {
         LAYER_TRAILS,
         LAYER_RESERVES,
         LAYER_NATIONAL_PARKS,
+        LAYER_URBAN_GREEN,
         LAYER_DESTINATIONS,
         LAYER_SEARCHED_PLACE,
       ],
@@ -401,7 +428,7 @@ function bindMapInteractions() {
       return;
     }
     const trailFeature = features.find((feature) =>
-      [LAYER_TRAILS, LAYER_RESERVES, LAYER_NATIONAL_PARKS, LAYER_DESTINATIONS]
+      [LAYER_TRAILS, LAYER_RESERVES, LAYER_NATIONAL_PARKS, LAYER_URBAN_GREEN, LAYER_DESTINATIONS]
         .includes(feature.layer.id),
     );
     if (trailFeature) {
@@ -415,6 +442,7 @@ function bindMapInteractions() {
     LAYER_TRAILS,
     LAYER_RESERVES,
     LAYER_NATIONAL_PARKS,
+    LAYER_URBAN_GREEN,
     LAYER_DESTINATIONS,
     LAYER_SEARCHED_PLACE,
   ].forEach((layerId) => {
@@ -425,7 +453,7 @@ function bindMapInteractions() {
       map.getCanvas().style.cursor = "";
     });
   });
-  [LAYER_TRAILS, LAYER_RESERVES, LAYER_NATIONAL_PARKS, LAYER_DESTINATIONS].forEach((layerId) => {
+  [LAYER_TRAILS, LAYER_RESERVES, LAYER_NATIONAL_PARKS, LAYER_URBAN_GREEN, LAYER_DESTINATIONS].forEach((layerId) => {
     map.on("mouseenter", layerId, showFeatureTooltip);
     map.on("mousemove", layerId, moveFeatureTooltip);
     map.on("mouseleave", layerId, hideFeatureTooltip);

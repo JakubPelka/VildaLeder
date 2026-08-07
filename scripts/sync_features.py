@@ -307,7 +307,7 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                     
                     if lat is None or lon is None:
                         continue
-
+                    display_geometry = Point(lon, lat)
                     if feature_kind == "urban_green":
                         polygon_geometry = element.get("geometry", [])
                         if not polygon_geometry:
@@ -320,11 +320,11 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                                 area_sqm = transform(to_sweref, area_polygon).area
                                 if area_sqm < 10000:
                                     continue
+                                display_geometry = area_polygon
                         except BaseException:
                             pass
                         
-                    point = Point(lon, lat)
-                    analysis = transform(to_wgs84, transform(to_sweref, point).buffer(BUFFER_METERS))
+                    analysis = transform(to_wgs84, transform(to_sweref, display_geometry).buffer(BUFFER_METERS))
                     
                     name = tags.get("name") or f"OSM {feature_kind.replace('_', ' ')} {element_id}"
                     
@@ -338,7 +338,7 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                         "municipalities": [municipality],
                         "municipality": municipality,
                         "sourceUrl": f"https://www.openstreetmap.org/{element_type}/{element_id}",
-                        "geometry": mapping(point),
+                        "geometry": mapping(display_geometry),
                         "analysisGeometry": mapping(analysis),
                     })
             except Exception as exc:
