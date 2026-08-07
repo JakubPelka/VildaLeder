@@ -72,6 +72,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--force", action="store_true", help="Repeat completed windows")
     parser.add_argument("--no-gbif", action="store_true", help="Skip fetching GBIF data")
+    parser.add_argument("--only-gbif", action="store_true", help="Fetch ONLY GBIF data")
     return parser.parse_args()
 
 
@@ -112,28 +113,32 @@ def ordered_features(
     )
 
 
-def coverage_key(feature_id: str, start: date, end: date) -> str:
-    return f"sos_window:{feature_id}:{start.isoformat()}:{end.isoformat()}"
+def coverage_key(feature_id: str, start: date, end: date, only_gbif: bool = False) -> str:
+    prefix = "gbif" if only_gbif else "sos"
+    return f"{prefix}_window:{feature_id}:{start.isoformat()}:{end.isoformat()}"
 
 
-def complete_key(feature_id: str, start: date, end: date) -> str:
-    return f"sos_complete:{feature_id}:{start.isoformat()}:{end.isoformat()}"
+def complete_key(feature_id: str, start: date, end: date, only_gbif: bool = False) -> str:
+    prefix = "gbif" if only_gbif else "sos"
+    return f"{prefix}_complete:{feature_id}:{start.isoformat()}:{end.isoformat()}"
 
 
-def completed_windows(connection: psycopg.Connection[Any]) -> set[str]:
+def completed_windows(connection: psycopg.Connection[Any], only_gbif: bool = False) -> set[str]:
+    prefix = "gbif" if only_gbif else "sos"
     return {
         key
         for (key,) in connection.execute(
-            "SELECT key FROM vildaleder.metadata WHERE key LIKE 'sos_window:%%'"
+            f"SELECT key FROM vildaleder.metadata WHERE key LIKE '{prefix}_window:%%'"
         ).fetchall()
     }
 
 
-def completed_features(connection: psycopg.Connection[Any]) -> set[str]:
+def completed_features(connection: psycopg.Connection[Any], only_gbif: bool = False) -> set[str]:
+    prefix = "gbif" if only_gbif else "sos"
     return {
         key
         for (key,) in connection.execute(
-            "SELECT key FROM vildaleder.metadata WHERE key LIKE 'sos_complete:%%'"
+            f"SELECT key FROM vildaleder.metadata WHERE key LIKE '{prefix}_complete:%%'"
         ).fetchall()
     }
 
@@ -173,15 +178,19 @@ def fetch_window(
     end: date,
     subscription_key: str,
     skip_gbif: bool = False,
+    only_gbif: bool = False,
 ) -> tuple[str, date, date, list[dict[str, Any]], int]:
     session = new_session()
-    raw, source_total = search_observations(
-        session,
-        subscription_key,
-        feature["analysisGeometry"],
-        start,
-        end,
-    )
+    raw = []
+    source_total = 0
+    if not only_gbif:
+        raw, source_total = search_observations(
+            session,
+            subscription_key,
+            feature["analysisGeometry"],
+            start,
+            end,
+        )
     observations = [simplify_observation(item) for item in raw]
     
     # GBIF integration
@@ -485,18 +494,19 @@ def mark_complete(
     start: date,
     end: date,
     expected_windows: list[tuple[date, date]],
+    only_gbif: bool = False,
 ) -> int:
     marked = 0
     with psycopg.connect(database_url) as connection:
-        existing = completed_windows(connection)
-        complete = completed_features(connection)
+        existing = completed_windows(connection, only_gbif=only_gbif)
+        complete = completed_features(connection, only_gbif=only_gbif)
         complete_ids = complete_feature_ids(complete, (end - start).days + 1)
         for feature_id in feature_ids:
-            target = complete_key(feature_id, start, end)
+            target = complete_key(feature_id, start, end, only_gbif=only_gbif)
             if feature_id in complete_ids:
                 marked += 1
             elif all(
-                coverage_key(feature_id, left, right) in existing
+                coverage_key(feature_id, left, right, only_gbif=only_gbif) in existing
                 for left, right in expected_windows
             ):
                 connection.execute(
@@ -528,9 +538,9 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
 
     with psycopg.connect(args.database_url) as connection:
         database_ids = public_feature_ids(connection)
-        done = set() if args.force else completed_windows(connection)
+        done = set() if args.force else completed_windows(connection, only_gbif=args.only_gbif)
         complete = set() if args.force else complete_feature_ids(
-            completed_features(connection), args.days
+            completed_features(connection, only_gbif=args.only_gbif), args.days
         )
     missing_features = [feature["id"] for feature in features if feature["id"] not in database_ids]
     if missing_features:
@@ -543,7 +553,7 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
         if args.force
         or (
             feature["id"] not in complete
-            and coverage_key(feature["id"], left, right) not in done
+            and coverage_key(feature["id"], left, right, only_gbif=args.only_gbif) not in done
         )
     ]
     stats = {"features": len(features), "windows": len(tasks), "records": 0, "matches": 0}
@@ -557,7 +567,7 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
     try:
         futures = {
             executor.submit(
-                fetch_window, feature, left, right, subscription_key, skip_gbif=args.no_gbif
+                fetch_window, feature, left, right, subscription_key, skip_gbif=args.no_gbif, only_gbif=args.only_gbif
             ): (
                 feature,
                 left,
@@ -606,6 +616,7 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
         window_start,
         args.end_date,
         windows,
+        only_gbif=args.only_gbif,
     )
     with psycopg.connect(args.database_url) as connection:
         stats["dailyAggregates"] = 0
