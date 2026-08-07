@@ -324,7 +324,8 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                         except BaseException:
                             pass
                         
-                    analysis = transform(to_wgs84, transform(to_sweref, display_geometry).buffer(BUFFER_METERS))
+                    buffer_dist = 200 if feature_kind == "urban_green" else BUFFER_METERS
+                    analysis = transform(to_wgs84, transform(to_sweref, display_geometry).buffer(buffer_dist))
                     
                     name = tags.get("name") or f"OSM {feature_kind.replace('_', ' ')} {element_id}"
                     
