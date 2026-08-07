@@ -298,16 +298,6 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                     element_id = element["id"]
                     element_type = element.get("type", "node")
                     
-                    lat = element.get("lat")
-                    lon = element.get("lon")
-                    if lat is None or lon is None:
-                        center = element.get("center", {})
-                        lat = center.get("lat")
-                        lon = center.get("lon")
-                    
-                    if lat is None or lon is None:
-                        continue
-                    display_geometry = Point(lon, lat)
                     area_sqm = None
                     if feature_kind == "urban_green":
                         polygon_geometry = element.get("geometry", [])
@@ -322,8 +312,25 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                                 if area_sqm < 10000:
                                     continue
                                 display_geometry = area_polygon
+                            else:
+                                continue
                         except BaseException:
-                            pass
+                            continue
+                    else:
+                        lat = element.get("lat")
+                        lon = element.get("lon")
+                        if lat is None or lon is None:
+                            center = element.get("center", {})
+                            lat = center.get("lat")
+                            lon = center.get("lon")
+                        if lat is None or lon is None:
+                            geom = element.get("geometry", [])
+                            if geom:
+                                lat = geom[0].get("lat")
+                                lon = geom[0].get("lon")
+                        if lat is None or lon is None:
+                            continue
+                        display_geometry = Point(lon, lat)
                         
                     buffer_dist = 200 if feature_kind == "urban_green" else BUFFER_METERS
                     analysis = transform(to_wgs84, transform(to_sweref, display_geometry).buffer(buffer_dist))
