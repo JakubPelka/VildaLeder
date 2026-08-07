@@ -532,7 +532,7 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
     )
     if not features:
         raise RuntimeError("No features match the requested municipality")
-    subscription_key = read_subscription_key()
+    subscription_key = "" if args.only_gbif else read_subscription_key()
     window_start = args.end_date - timedelta(days=args.days - 1)
     windows = year_windows(window_start, args.end_date)
 
