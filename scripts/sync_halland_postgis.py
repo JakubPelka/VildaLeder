@@ -171,6 +171,7 @@ def fetch_window(
     start: date,
     end: date,
     subscription_key: str,
+    skip_gbif: bool = False,
 ) -> tuple[str, date, date, list[dict[str, Any]], int]:
     session = new_session()
     raw, source_total = search_observations(
@@ -183,14 +184,15 @@ def fetch_window(
     observations = [simplify_observation(item) for item in raw]
     
     # GBIF integration
-    try:
-        from refresh_data import search_gbif_observations
-        gbif_records = search_gbif_observations(
-            session, feature["analysisGeometry"], start, end
-        )
-        observations.extend(gbif_records)
-    except Exception as exc:
-        print(f"Warning: GBIF search failed for {feature['id']} window {start}-{end}: {exc}")
+    if not skip_gbif:
+        try:
+            from refresh_data import search_gbif_observations
+            gbif_records = search_gbif_observations(
+                session, feature["analysisGeometry"], start, end
+            )
+            observations.extend(gbif_records)
+        except Exception as exc:
+            print(f"Warning: GBIF search failed for {feature['id']} window {start}-{end}: {exc}")
 
     observations = [
         observation
@@ -553,7 +555,9 @@ def sync(args: argparse.Namespace) -> dict[str, int]:
     executor = ThreadPoolExecutor(max_workers=args.workers)
     try:
         futures = {
-            executor.submit(fetch_window, feature, left, right, subscription_key): (
+            executor.submit(
+                fetch_window, feature, left, right, subscription_key, skip_gbif=args.no_gbif
+            ): (
                 feature,
                 left,
                 right,

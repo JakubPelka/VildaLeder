@@ -105,10 +105,10 @@ log "Refreshing Halland OSM trails and Naturvårdsregistret reserves"
 
 if [[ "${VILDA_FORCE_FULL_RECONCILE:-0}" == "1" || "$(date +%d)" == "${FULL_RECONCILE_DAY}" ]]; then
   log "Running scheduled full ten-year SOS reconciliation"
-  "${PYTHON_BIN}" scripts/sync_halland_postgis.py --days 3650 --workers 1 --force
+  "${PYTHON_BIN}" scripts/sync_halland_postgis.py --days 3650 --workers 1 --force --no-gbif
 else
   log "Completing ten-year coverage for any new or changed places"
-  "${PYTHON_BIN}" scripts/sync_halland_postgis.py --days 3650 --workers 1
+  "${PYTHON_BIN}" scripts/sync_halland_postgis.py --days 3650 --workers 1 --no-gbif
   log "Refreshing the rolling ${ROLLING_DAYS}-day SOS correction window"
   "${PYTHON_BIN}" scripts/sync_halland_postgis.py --days "${ROLLING_DAYS}" --workers 1 --force
 fi
