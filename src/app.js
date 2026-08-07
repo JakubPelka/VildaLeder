@@ -269,7 +269,7 @@ function featureKindLabel(feature) {
 }
 
 function featureDimension(feature) {
-  if (["reserve", "national_park"].includes(feature.featureKind)) {
+  if (["reserve", "national_park", "urban_green"].includes(feature.featureKind)) {
     return t("areaHectares", { value: formatNumber(Math.round(feature.areaHa || 0)) });
   }
   if (feature.featureKind === "trail") {

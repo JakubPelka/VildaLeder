@@ -308,6 +308,7 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                     if lat is None or lon is None:
                         continue
                     display_geometry = Point(lon, lat)
+                    area_sqm = None
                     if feature_kind == "urban_green":
                         polygon_geometry = element.get("geometry", [])
                         if not polygon_geometry:
@@ -329,7 +330,7 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                     
                     name = tags.get("name") or f"OSM {feature_kind.replace('_', ' ')} {element_id}"
                     
-                    features.append({
+                    feature_dict = {
                         "id": f"osm-{element_type}-{element_id}",
                         "featureKind": feature_kind,
                         "source": "osm",
@@ -341,7 +342,10 @@ def fetch_osm_destinations(county: str, municipalities: dict[str, str]) -> list[
                         "sourceUrl": f"https://www.openstreetmap.org/{element_type}/{element_id}",
                         "geometry": mapping(display_geometry),
                         "analysisGeometry": mapping(analysis),
-                    })
+                    }
+                    if area_sqm is not None:
+                        feature_dict["areaHa"] = round(area_sqm / 10000, 2)
+                    features.append(feature_dict)
             except Exception as exc:
                 print(f"Failed OSM destinations in {municipality}: {exc}", file=sys.stderr)
     return features
