@@ -856,8 +856,8 @@ function renderTrailResults() {
 
   const direction = state.trailSortDir === "desc" ? 1 : -1;
   trails.sort((a, b) => {
-    const statsA = indexedTrailStats(state.searchIndex, a.id, range);
-    const statsB = indexedTrailStats(state.searchIndex, b.id, range);
+    const statsA = indexedTrailStats(state.searchIndex, a, range);
+    const statsB = indexedTrailStats(state.searchIndex, b, range);
     
     let diff = 0;
     if (state.trailSortBy === "species") {
@@ -872,7 +872,7 @@ function renderTrailResults() {
   });
   
   trails.forEach((trail) => {
-    const stats = indexedTrailStats(state.searchIndex, trail.id, range);
+    const stats = indexedTrailStats(state.searchIndex, trail, range);
     const button = node("button", "result-card");
     button.type = "button";
     button.classList.toggle("is-selected", trail.id === state.selectedTrailId);

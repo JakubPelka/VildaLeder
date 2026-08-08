@@ -230,15 +230,17 @@ export function resolveSpecies(catalog, query) {
   return matches.length === 1 ? matches[0] : null;
 }
 
-export function indexedTrailStats(searchIndex, trailId, range) {
+export function indexedTrailStats(searchIndex, trail, range) {
   let species = 0;
   if (!searchIndex.taxaRankingsLazy) {
     for (const taxon of searchIndex.taxa || []) {
-      if (countDated(taxon.trails?.[trailId], range) > 0) species += 1;
+      if (countDated(taxon.trails?.[trail.id], range) > 0) species += 1;
     }
+  } else if (!range) {
+    species = trail.speciesCount || 0;
   }
   return {
-    observations: countDated(searchIndex.trails?.[trailId], range),
+    observations: countDated(searchIndex.trails?.[trail.id], range),
     species,
   };
 }

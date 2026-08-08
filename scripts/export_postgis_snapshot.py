@@ -155,7 +155,7 @@ def export_species_partitions(
 
     query = """SELECT min(record.source_record_id),
                       observed.observed_on,
-                      external.external_id,
+                      min(external.external_id),
                       observed.individual_count,
                       observed.verified,
                       observed.uncertain_identification,
@@ -177,7 +177,7 @@ def export_species_partitions(
                  AND NOT record.is_deleted
                  AND observed.observed_on BETWEEN %s AND %s
                  AND external.external_id IS NOT NULL
-               GROUP BY observed.observation_id, external.external_id
+               GROUP BY observed.observation_id
                ORDER BY observed.observed_on, min(record.source_record_id)"""
     with connection.cursor(name="species_point_export") as cursor:
         cursor.itersize = 10_000
@@ -209,13 +209,12 @@ def export_feature_partitions(
     snapshot_end: date,
     start: date,
     end: date,
-) -> tuple[list[dict[str, Any]], int]:
+) -> tuple[list[dict[str, Any]], int, int]:
     partitions: dict[str, list[list[Any]]] = defaultdict(list)
     rows = connection.execute(
-        """SELECT DISTINCT
-                  record.source_record_id,
+        """SELECT record.source_record_id,
                   observed.observed_on,
-                  external.external_id,
+                  min(external.external_id),
                   observed.individual_count,
                   observed.verified,
                   observed.uncertain_identification,
@@ -235,12 +234,16 @@ def export_feature_partitions(
              AND observed.location_is_public
              AND NOT record.is_deleted
              AND observed.observed_on BETWEEN %s AND %s
+           GROUP BY observed.observation_id, record.source_record_id
            ORDER BY observed.observed_on, record.source_record_id""",
         (feature_database_id, start, end),
     ).fetchall()
+    unique_taxa = set()
     for row in rows:
         compact = compact_record(row)
         partitions[partition_name(compact[1], snapshot_end)].append(compact)
+        if compact[2] is not None:
+            unique_taxa.add(compact[2])
 
     manifests = []
     for partition, records in sorted(partitions.items()):
@@ -255,7 +258,7 @@ def export_feature_partitions(
                 "count": len(records),
             }
         )
-    return manifests, len(rows)
+    return manifests, len(rows), len(unique_taxa)
 
 
 def search_index(
@@ -271,7 +274,7 @@ def search_index(
     )
     counts = connection.execute(
         """SELECT matched.feature_id,
-                  external.external_id,
+                  min(external.external_id),
                   observed.observed_on,
                   count(DISTINCT observed.observation_id)::integer
            FROM vildaleder.observation_feature matched
@@ -287,7 +290,7 @@ def search_index(
              AND observed.location_is_public
              AND NOT record.is_deleted
              AND observed.observed_on BETWEEN %s AND %s
-           GROUP BY matched.feature_id, external.external_id, observed.observed_on
+           GROUP BY matched.feature_id, observed.taxon_id, observed.observed_on
            ORDER BY matched.feature_id, observed.observed_on""",
         (list(feature_database_ids), start, end),
     ).fetchall()
@@ -396,7 +399,7 @@ def export(args: argparse.Namespace) -> dict[str, int]:
         total = 0
         try:
             for index, public_id in enumerate(sorted(database_features), 1):
-                manifests, observation_total = export_feature_partitions(
+                manifests, observation_total, species_total = export_feature_partitions(
                     connection,
                     database_features[public_id],
                     public_id,
@@ -409,6 +412,7 @@ def export(args: argparse.Namespace) -> dict[str, int]:
                 feature["corridor"] = feature.pop("analysisGeometry")
                 feature["observationFiles"] = manifests
                 feature["observationTotal"] = observation_total
+                feature["speciesCount"] = species_total
                 feature["observationLimitReached"] = False
                 if feature.get("source") == "osm":
                     source_id = str(feature["sourceFeatureId"])
