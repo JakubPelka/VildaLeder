@@ -236,7 +236,7 @@ def load_data(archive_path: str, db_url: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Bulk download GBIF occurrences")
-    parser.add_argument("--gadm", type=str, default="SWE.13_1", help="GADM region ID (default Halland SWE.13_1)")
+    parser.add_argument("--gadm", type=str, default="SWE", help="GADM region ID (default Sweden SWE)")
     parser.add_argument("--years", type=int, default=10, help="Number of years to go back")
     parser.add_argument("--force-download", action="store_true", help="Force redownload even if local archive exists")
     args = parser.parse_args()
