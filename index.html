@@ -215,6 +215,9 @@
             <span data-i18n="manageFavorites">Manage favorites</span>
             <span id="favorites-badge" class="badge" hidden>!</span>
           </button>
+          <button id="open-tools" class="about-tutorial" type="button" data-i18n="tools">
+            Tools
+          </button>
           <button id="open-tutorial" class="about-tutorial" type="button" data-i18n="aboutAndTutorial">
             About &amp; tutorial
           </button>
@@ -234,6 +237,18 @@
             <h3 data-i18n="favoriteSpecies" class="favorites-section-heading">Species</h3>
             <ul id="favorite-species-list" class="ranking-list"></ul>
             <p id="no-favorite-species" class="empty-state" data-i18n="noFavorites" hidden>No favorites yet.</p>
+          </div>
+        </div>
+
+        <div id="tools-view" class="favorites-view" hidden>
+          <div class="results-header">
+            <button id="close-tools" class="wizard-secondary" style="align-self: flex-start; margin-bottom: 1rem;" type="button" data-i18n="backToMainMenu">
+              Back to main menu
+            </button>
+            <h2 data-i18n="toolsHeading">Tools</h2>
+          </div>
+          <div class="favorites-content">
+            <p class="empty-state" data-i18n="toolsPlaceholder">Tools will be added here.</p>
           </div>
         </div>
 
