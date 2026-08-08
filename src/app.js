@@ -1038,6 +1038,18 @@ function expandObservation(record) {
   ] = record;
   const taxon = localizedSpecies(state.taxonById.get(String(taxonId)) || {});
   const hasArtportalenId = /^\d+$/.test(String(sourceId));
+  const isGbif = String(sourceId).startsWith("gbif-");
+  
+  let sourceUrl = null;
+  let dataset = "Artportalen";
+  
+  if (hasArtportalenId) {
+    sourceUrl = `https://www.artportalen.se/sighting/${sourceId}`;
+  } else if (isGbif) {
+    sourceUrl = `https://www.gbif.org/occurrence/${String(sourceId).replace("gbif-", "")}`;
+    dataset = "GBIF";
+  }
+
   return {
     id: hasArtportalenId ? `urn:lsid:artportalen.se:sighting:${sourceId}` : String(sourceId),
     date: day,
@@ -1053,10 +1065,8 @@ function expandObservation(record) {
     longitude,
     uncertaintyMeters,
     featureIndexes: featureIndexes || [],
-    sourceUrl: hasArtportalenId
-      ? `https://www.artportalen.se/sighting/${sourceId}`
-      : null,
-    dataset: "Artportalen",
+    sourceUrl,
+    dataset,
   };
 }
 
