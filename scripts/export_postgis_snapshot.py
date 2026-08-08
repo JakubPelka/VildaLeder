@@ -458,7 +458,7 @@ def export(args: argparse.Namespace) -> dict[str, int]:
             "sources": {
                 "trails": "OpenStreetMap contributors",
                 "reserves": "Naturvårdsverket, Naturvårdsregistret",
-                "observations": "Artportalen via SLU Species Observation System",
+                "observations": "Artportalen via SLU, GBIF",
             },
         },
         "trails": sorted(exported, key=lambda item: (item["name"].casefold(), item["id"])),

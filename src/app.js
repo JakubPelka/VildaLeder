@@ -1290,9 +1290,7 @@ function renderResolvedTrailDetails(trail, observations) {
       "p",
       "details-meta",
       (trail.observationCoverage || trail.observationFiles)
-        ? `${municipalities}, ${trail.county} · ${dimension} · ${t("observations", {
-            count: formatNumber(displayedObservations.length),
-          })} · ${t("species", { count: formatNumber(taxa.length) })}`
+        ? `${municipalities}, ${trail.county} · ${dimension}`
         : `${municipalities}, ${trail.county} · ${dimension} · ${t("observationSyncPending")}`,
     ),
   );
@@ -1955,6 +1953,7 @@ function selectTrail(trailId) {
   void renderTrailDetails();
   updateMapStyles();
   fitTrail(getFeatureById(trailId));
+  setSidebarOpen(false);
 }
 
 function clearTrailSelection() {

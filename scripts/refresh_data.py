@@ -908,7 +908,7 @@ def build_dataset(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, A
             "observationRecordFields": list(OBSERVATION_FIELDS),
             "sources": {
                 "trails": "OpenStreetMap contributors",
-                "observations": "Artportalen via SLU Species Observation System",
+                "observations": "Artportalen via SLU, GBIF",
             },
         },
         "trails": generated_trails,
