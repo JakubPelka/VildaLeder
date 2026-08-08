@@ -451,6 +451,7 @@ def search_gbif_observations(
                 "latitude": item.get("decimalLatitude"),
                 "longitude": item.get("decimalLongitude"),
                 "coordinateUncertaintyInMeters": item.get("coordinateUncertaintyInMeters"),
+                "sourceUrl": f"https://www.gbif.org/occurrence/{item.get('gbifID')}" if item.get("gbifID") else None,
             })
             
         if data.get("endOfRecords", True) or not results:
