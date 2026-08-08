@@ -388,7 +388,11 @@ export function setObservationColors(mapping) {
 
 function bindMapInteractions() {
   map.on("click", async (event) => {
-    const features = map.queryRenderedFeatures(event.point, {
+    const bbox = [
+      [event.point.x - 15, event.point.y - 15],
+      [event.point.x + 15, event.point.y + 15]
+    ];
+    const features = map.queryRenderedFeatures(bbox, {
       layers: [
         LAYER_OBSERVATION_CLUSTERS,
         LAYER_OBSERVATIONS,

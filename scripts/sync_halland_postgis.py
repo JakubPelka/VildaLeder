@@ -468,7 +468,7 @@ def import_window(
             """INSERT INTO vildaleder.metadata(key, value) VALUES (%s, %s)
                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
             (
-                coverage_key(feature_public_id, window_start, window_end),
+                coverage_key(feature_public_id, window_start, window_end, only_gbif=only_gbif),
                 json.dumps(
                     {
                         "completedAt": generated_at,

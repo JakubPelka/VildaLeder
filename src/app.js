@@ -1959,6 +1959,8 @@ function selectTrail(trailId) {
 function clearTrailSelection() {
   if (!state.selectedTrailId) return;
   state.selectedTrailId = null;
+  setHoveredTrail(null);
+  clearSearchedPlace();
   renderTrailResults();
   void renderSpeciesResults();
   void renderTrailDetails();
