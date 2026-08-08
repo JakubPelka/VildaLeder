@@ -232,6 +232,32 @@ def load_data(archive_path: str, db_url: str):
                             last_seen_at = EXCLUDED.last_seen_at
                     """, (iso_timestamp(), iso_timestamp()))
 
+                    print("Inserting observation-feature spatial matches...", file=sys.stderr)
+                    conn.execute(f"""
+                        INSERT INTO vildaleder.observation_feature(
+                            observation_id,
+                            feature_id,
+                            match_method,
+                            feature_geometry_version,
+                            matched_at
+                        )
+                        SELECT DISTINCT
+                            o.observation_id,
+                            f.feature_id,
+                            'gbif_spatial_join',
+                            f.geometry_version,
+                            %s::timestamptz
+                        FROM gbif_filtered g
+                        JOIN vildaleder.observation o ON o.canonical_key = 'gbif:' || g.gbif_id
+                        JOIN vildaleder.spatial_feature f
+                          ON f.is_active
+                         AND ST_Intersects(o.geom, f.analysis_geom)
+                        ON CONFLICT (observation_id, feature_id) DO UPDATE
+                        SET match_method = EXCLUDED.match_method,
+                            feature_geometry_version = EXCLUDED.feature_geometry_version,
+                            matched_at = EXCLUDED.matched_at
+                    """, (iso_timestamp(),))
+
                     conn.commit()
 
 def main():
