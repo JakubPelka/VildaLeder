@@ -455,7 +455,7 @@ def import_window(
                       'sos_geometry_query', feature.geometry_version, %s::timestamptz
                FROM sos_window_observation staged
                JOIN vildaleder.observation observed
-                 ON observed.canonical_key = 'sos:' || staged.source_record_id
+                 ON observed.canonical_key = (CASE WHEN staged.source_record_id LIKE 'gbif-%%' THEN 'gbif:' ELSE 'sos:' END) || staged.canonical_record_id
                JOIN vildaleder.spatial_feature feature ON feature.feature_id = %s
                ON CONFLICT (observation_id, feature_id) DO UPDATE
                SET match_method = EXCLUDED.match_method,
