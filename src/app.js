@@ -138,9 +138,6 @@ const elements = {
   openFavorites: document.querySelector("#open-favorites"),
   closeFavorites: document.querySelector("#close-favorites"),
   favoritesView: document.querySelector("#favorites-view"),
-  openTools: document.querySelector("#open-tools"),
-  closeTools: document.querySelector("#close-tools"),
-  toolsView: document.querySelector("#tools-view"),
   favoriteTrailsList: document.querySelector("#favorite-trails-list"),
   favoriteSpeciesList: document.querySelector("#favorite-species-list"),
   noFavoriteTrails: document.querySelector("#no-favorite-trails"),
@@ -513,7 +510,6 @@ function showSearchResults({ validate = true } = {}) {
   elements.criteriaView.hidden = true;
   elements.resultsView.hidden = false;
   elements.favoritesView.hidden = true;
-  elements.toolsView.hidden = true;
   elements.sidebar.scrollTo({ top: 0, behavior: "smooth" });
   if (state.catalog) renderAll();
   return true;
@@ -523,7 +519,6 @@ function showSearchCriteria() {
   state.searchView = "criteria";
   elements.resultsView.hidden = true;
   elements.criteriaView.hidden = false;
-  elements.toolsView.hidden = true;
   setCriteriaStep(3);
 }
 
@@ -2526,21 +2521,9 @@ function bindEvents() {
   }
   elements.openTutorial.addEventListener("click", () => showWelcomeDialog({ force: true }));
   
-  elements.openTools.addEventListener("click", () => {
-    elements.criteriaView.hidden = true;
-    elements.resultsView.hidden = true;
-    elements.favoritesView.hidden = true;
-    elements.toolsView.hidden = false;
-  });
-  elements.closeTools.addEventListener("click", () => {
-    elements.toolsView.hidden = true;
-    elements.criteriaView.hidden = false;
-  });
-
   elements.openFavorites.addEventListener("click", () => {
     elements.criteriaView.hidden = true;
     elements.resultsView.hidden = true;
-    elements.toolsView.hidden = true;
     elements.favoritesView.hidden = false;
     elements.favoritesBadge.hidden = true;
     renderFavoritesView();
